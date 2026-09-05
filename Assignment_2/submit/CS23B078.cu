@@ -17,7 +17,7 @@ __global__ void print(int* mat, int r, int c) {
 
 __global__ void transpose(int* d_mat, int* t_mat) { //launch with <<r, c>> 
 	//this is probably buggy
-	int i = blockIdx.x, j = threadIdx.x, D = blockDim.x;
+	int i = blockIdx.x, j = threadIdx.x, D = gridDim.x;
 	int idx1 = i*D + j;
 	int idx2 = j*D + i;
 	t_mat[idx2] = d_mat[idx1];
@@ -25,7 +25,7 @@ __global__ void transpose(int* d_mat, int* t_mat) { //launch with <<r, c>>
 
 __global__ void multiply(int* mat1, int* mat2, int l, int* res) {
 	int i = blockIdx.x, j = threadIdx.x;
-	int r = blockDim.x, c = threadDim.x;
+	int r = gridDim.x, c = blockDim.x;
 	for (int x = 0; x < l; x++) {
 		int idx1 = i * l + x; 
 		int idx2 = x * c + j;
@@ -35,7 +35,7 @@ __global__ void multiply(int* mat1, int* mat2, int l, int* res) {
 }
 
 __global__ void add(int* mat1, int* mat2) { //we'll do this in-place, and just add everything to mat1
-	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+	int idx = blockIdx.x * gridDim.x + threadIdx.x;
 	mat1[idx] += mat2[idx];
 }
 
