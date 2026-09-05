@@ -15,14 +15,12 @@ __global__ void print(int* mat, int r, int c) {
 	}
 }
 
-__global__ void transpose(int* d_mat) { //launch with <<r, c>> 
+__global__ void transpose(int* d_mat, int* t_mat) { //launch with <<r, c>> 
+	//this is probably buggy
 	int i = blockIdx.x, j = threadIdx.x, D = blockDim.x;
-	if (i > j) return;
 	int idx1 = i*D + j;
 	int idx2 = j*D + i;
-	int temp = d_mat[idx1];
-	d_mat[idx1] = d_mat[idx2];
-	d_mat[idx2] = temp;
+	t_mat[idx2] = d_mat[idx1];
 }
 
 __global__ void multiply(int* mat1, int* mat2, int l, int* res) {
@@ -63,13 +61,15 @@ void compute(int p, int q, int r, int *h_matrixA, int *h_matrixB,
 	/* ****************************************************************** */
 	/* Write your code here */
 	/* Configure and launch kernels */
-	int *d_matrixTemp;
+	int *t_matA, *t_matD, *d_matrixTemp;
+	cudaMalloc(&t_mat, q * p * sizeof(int));
+	cudaMalloc(&t_matD, r * q * sizeof(int));
 	cudaMalloc(&d_matrixTemp, p * r * sizeof(int));
 
-	transpose<<q, p>>(d_matrixA);
-	transpose<<r, q>>(d_matrixD);
-	multiply<<p, r>>(d_matrixA, d_matrixB, q, d_matrixE);
-	multiply<<p, r>>(d_matrixC, d_matrixD, q, d_matrixTemp);
+	transpose<<q, p>>(d_matrixA, t_matA);
+	transpose<<r, q>>(d_matrixD, t_matB);
+	multiply<<p, r>>(t_matA, d_matrixB, q, d_matrixE);
+	multiply<<p, r>>(d_matrixC, t_matD, q, d_matrixTemp);
 	add<<p, r>>(d_matrixE, d_matrixTemp);
 
 
