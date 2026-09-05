@@ -15,7 +15,7 @@ __global__ void print(int* mat, int r, int c) {
 	}
 }
 
-__global__ void transpose(int* d_mat, int* t_mat) { //launch with <<r, c>> 
+__global__ void transpose(int* d_mat, int* t_mat) { //launch with <<<r, c>>> 
 	//this is probably buggy
 	int i = blockIdx.x, j = threadIdx.x, D = gridDim.x;
 	int idx1 = i*D + j;
@@ -66,11 +66,11 @@ void compute(int p, int q, int r, int *h_matrixA, int *h_matrixB,
 	cudaMalloc(&t_matD, r * q * sizeof(int));
 	cudaMalloc(&d_matrixTemp, p * r * sizeof(int));
 
-	transpose<<q, p>>(d_matrixA, t_matA);
-	transpose<<r, q>>(d_matrixD, t_matB);
-	multiply<<p, r>>(t_matA, d_matrixB, q, d_matrixE);
-	multiply<<p, r>>(d_matrixC, t_matD, q, d_matrixTemp);
-	add<<p, r>>(d_matrixE, d_matrixTemp);
+	transpose<<<q, p>>>(d_matrixA, t_matA);
+	transpose<<<r, q>>>(d_matrixD, t_matB);
+	multiply<<<p, r>>>(t_matA, d_matrixB, q, d_matrixE);
+	multiply<<<p, r>>>(d_matrixC, t_matD, q, d_matrixTemp);
+	add<<<p, r>>>(d_matrixE, d_matrixTemp);
 
 
 	/* ****************************************************************** */
