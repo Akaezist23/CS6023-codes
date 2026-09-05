@@ -62,7 +62,7 @@ void compute(int p, int q, int r, int *h_matrixA, int *h_matrixB,
 	/* Write your code here */
 	/* Configure and launch kernels */
 	int *t_matA, *t_matD, *d_matrixTemp;
-	cudaMalloc(&t_mat, q * p * sizeof(int));
+	cudaMalloc(&t_matA, q * p * sizeof(int));
 	cudaMalloc(&t_matD, r * q * sizeof(int));
 	cudaMalloc(&d_matrixTemp, p * r * sizeof(int));
 
