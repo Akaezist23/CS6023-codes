@@ -1,0 +1,12 @@
+06 = nonmul16
+07 = upscale
+08 = degenerate_row
+09 = degenerate_col
+10 = degenerate_both
+11 = nocrop
+12 = odd_offset
+13 = extreme_meanstd_lo
+14 = extreme_meanstd_hi
+15 = tiny_1x1
+16 = large_mixed
+17 = all_odd
