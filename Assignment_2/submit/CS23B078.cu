@@ -16,6 +16,15 @@ __global__ void print(const char* name, int* mat, int r, int c) {
 	}
 }
 
+void debugPrint(const char* label, int* d_mat, int r, int c) {
+    char *d_label;
+    cudaMalloc(&d_label, strlen(label) + 1);
+    cudaMemcpy(d_label, label, strlen(label) + 1, cudaMemcpyHostToDevice);
+    print<<<1, 1>>>(d_label, d_mat, r, c);
+    cudaDeviceSynchronize();  // force the print to flush before continuing
+    cudaFree(d_label);
+}
+
 __global__ void transpose(int* d_mat, int* t_mat) { //launch with <<<r, c>>> 
 	//this is probably buggy
 	int i = blockIdx.x, j = threadIdx.x, D = gridDim.x;
@@ -67,13 +76,13 @@ void compute(int p, int q, int r, int *h_matrixA, int *h_matrixB,
 	cudaMalloc(&t_matD, r * q * sizeof(int));
 	cudaMalloc(&d_matrixTemp, p * r * sizeof(int));
 	
-	print<<<1, 1>>>("A", d_matrixA, p, q);
+	debugPrint("A", d_matrixA, p, q);
 	transpose<<<q, p>>>(d_matrixA, t_matA);
-	print<<<1, 1>>>("AT", t_matA, p, q);
+	debugPrint("AT", t_matA, p, q);
 
-	print<<<1, 1>>>("D", d_matrixA, p, q);
+	debugPrint("D", d_matrixA, p, q);
 	transpose<<<r, q>>>(d_matrixD, t_matD);
-	print<<<1, 1>>>("DT", t_matA, p, q);
+	debugPrint("DT", t_matA, p, q);
 	
 
 	multiply<<<p, r>>>(t_matA, d_matrixB, q, d_matrixE);
@@ -81,8 +90,10 @@ void compute(int p, int q, int r, int *h_matrixA, int *h_matrixB,
 	add<<<p, r>>>(d_matrixE, d_matrixTemp);
 
 	cudaDeviceSynchronize();
-
-
+	cudaFree(t_matA);
+	cudaFree(t_matB);
+	cudaFree(d_matrixTemp);
+	
 	/* ****************************************************************** */
 
 	// copy the result back...
