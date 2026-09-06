@@ -80,6 +80,8 @@ void compute(int p, int q, int r, int *h_matrixA, int *h_matrixB,
 	multiply<<<p, r>>>(d_matrixC, t_matD, q, d_matrixTemp);
 	add<<<p, r>>>(d_matrixE, d_matrixTemp);
 
+	cudaDeviceSynchronize();
+
 
 	/* ****************************************************************** */
 
