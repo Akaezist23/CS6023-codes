@@ -27,9 +27,9 @@ void debugPrint(const char* label, int* d_mat, int r, int c) {
 
 __global__ void transpose(int* d_mat, int* t_mat) { //launch with <<<r, c>>> 
 	//this is probably buggy
-	int i = blockIdx.x, j = threadIdx.x, D = gridDim.x;
-	int idx1 = i*D + j;
-	int idx2 = j*D + i;
+	int i = blockIdx.x, j = threadIdx.x;
+	int idx1 = i*gridDim.x + j;
+	int idx2 = j*blockDim.x + i;
 	t_mat[idx2] = d_mat[idx1];
 }
 
