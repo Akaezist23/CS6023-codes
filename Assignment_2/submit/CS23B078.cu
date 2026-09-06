@@ -67,13 +67,13 @@ void compute(int p, int q, int r, int *h_matrixA, int *h_matrixB,
 	cudaMalloc(&t_matD, r * q * sizeof(int));
 	cudaMalloc(&d_matrixTemp, p * r * sizeof(int));
 	
-	print("A", d_matrixA, p, q);
+	print<<<1, 1>>>("A", d_matrixA, p, q);
 	transpose<<<q, p>>>(d_matrixA, t_matA);
-	print("AT", t_matA, p, q);
+	print<<<1, 1>>>("AT", t_matA, p, q);
 
-	print("D", d_matrixA, p, q);
+	print<<<1, 1>>>("D", d_matrixA, p, q);
 	transpose<<<r, q>>>(d_matrixD, t_matD);
-	print("DT", t_matA, p, q);
+	print<<<1, 1>>>("DT", t_matA, p, q);
 	
 
 	multiply<<<p, r>>>(t_matA, d_matrixB, q, d_matrixE);
