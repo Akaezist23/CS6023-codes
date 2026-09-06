@@ -79,7 +79,7 @@ void compute(int p, int q, int r, int *h_matrixA, int *h_matrixB,
 	
 	debugPrint("A", d_matrixA, p, q);
 	transpose<<<q, p>>>(d_matrixA, t_matA);
-	debugPrint("AT", t_matA, p, q);
+	debugPrint("AT", t_matA, q, p);
 
 	debugPrint("D", d_matrixD, r, q);
 	transpose<<<r, q>>>(d_matrixD, t_matD);
