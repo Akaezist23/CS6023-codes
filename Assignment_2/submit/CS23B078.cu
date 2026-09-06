@@ -26,7 +26,6 @@ void debugPrint(const char* label, int* d_mat, int r, int c) {
 }
 
 __global__ void transpose(int* d_mat, int* t_mat) { //launch with <<<r, c>>> 
-	//this is probably buggy
 	int i = blockIdx.x, j = threadIdx.x;
 	int idx1 = i*blockDim.x + j;
 	int idx2 = j*gridDim.x + i;
@@ -77,24 +76,24 @@ void compute(int p, int q, int r, int *h_matrixA, int *h_matrixB,
 	cudaMalloc(&t_matD, r * q * sizeof(int));
 	cudaMalloc(&d_matrixTemp, p * r * sizeof(int));
 	
-	debugPrint("A", d_matrixA, p, q);
+	// debugPrint("A", d_matrixA, p, q);
 	transpose<<<q, p>>>(d_matrixA, t_matA);
-	debugPrint("AT", t_matA, q, p);
+	// debugPrint("AT", t_matA, q, p);
 
-	debugPrint("D", d_matrixD, r, q);
+	// debugPrint("D", d_matrixD, r, q);
 	transpose<<<r, q>>>(d_matrixD, t_matD);
-	debugPrint("DT", t_matD, q, r);
+	// debugPrint("DT", t_matD, q, r);
 	
-	debugPrint("B", d_matrixB, q, r);
-	debugPrint("C", d_matrixC, p, q);
+	// debugPrint("B", d_matrixB, q, r);
+	// debugPrint("C", d_matrixC, p, q);
 	multiply<<<p, r>>>(t_matA, d_matrixB, q, d_matrixE);
-	debugPrint("E = ATB", d_matrixE, p, r);
+	// debugPrint("E = ATB", d_matrixE, p, r);
 
 	multiply<<<p, r>>>(d_matrixC, t_matD, q, d_matrixTemp);
-	debugPrint("Temp = CDT", d_matrixTemp, p, r);
+	// debugPrint("Temp = CDT", d_matrixTemp, p, r);
 
 	add<<<p, r>>>(d_matrixE, d_matrixTemp);
-	debugPrint("Final = E + Temp", d_matrixE, p, r);
+	// debugPrint("Final = E + Temp", d_matrixE, p, r);
 
 
 	cudaDeviceSynchronize();
