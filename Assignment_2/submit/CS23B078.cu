@@ -5,7 +5,7 @@
 #include<cuda.h>
 using namespace std;
 
-__global__ void print(char* name, int* mat, int r, int c) {
+__global__ void print(const char* name, int* mat, int r, int c) {
 	printf("%s\n", name);
 	for (int i = 0; i < r; i++) {
 		for (int j = 0; j < c; j++) {
