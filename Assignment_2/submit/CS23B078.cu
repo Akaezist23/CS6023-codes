@@ -35,7 +35,7 @@ __global__ void transpose(int* d_mat, int* t_mat) { //launch with <<<r, c>>>
 
 __global__ void multiply(int* mat1, int* mat2, int l, int* res) { //launch with <<<p, r>>>
 	int i = blockIdx.x, j = threadIdx.x;
-	int c = blockDim.x;
+	int r = gridDim.x, c = blockDim.x;
 	int idx3 = i * c + j;
 	res[idx3] = 0;
 	for (int x = 0; x < l; x++) {
