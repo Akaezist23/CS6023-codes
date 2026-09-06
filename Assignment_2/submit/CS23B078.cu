@@ -28,14 +28,14 @@ void debugPrint(const char* label, int* d_mat, int r, int c) {
 __global__ void transpose(int* d_mat, int* t_mat) { //launch with <<<r, c>>> 
 	//this is probably buggy
 	int i = blockIdx.x, j = threadIdx.x;
-	int idx1 = i*gridDim.x + j;
-	int idx2 = j*blockDim.x + i;
+	int idx1 = i*blockDim.x + j;
+	int idx2 = j*gridDim.x + i;
 	t_mat[idx2] = d_mat[idx1];
 }
 
 __global__ void multiply(int* mat1, int* mat2, int l, int* res) { //launch with <<<p, r>>>
 	int i = blockIdx.x, j = threadIdx.x;
-	int r = gridDim.x, c = blockDim.x;
+	int c = blockDim.x;
 	int idx3 = i * c + j;
 	res[idx3] = 0;
 	for (int x = 0; x < l; x++) {
