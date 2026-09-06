@@ -87,13 +87,13 @@ void compute(int p, int q, int r, int *h_matrixA, int *h_matrixB,
 	
 	debugPrint("B", d_matrixB, q, r);
 	debugPrint("C", d_matrixC, p, q);
-	multiply<<<p, r>>>(t_matA, d_matrixB, q, d_matrixE);
+	// multiply<<<p, r>>>(t_matA, d_matrixB, q, d_matrixE);
 	// debugPrint("E = ATB", d_matrixE, p, r);
 
-	multiply<<<p, r>>>(d_matrixC, t_matD, q, d_matrixTemp);
+	// multiply<<<p, r>>>(d_matrixC, t_matD, q, d_matrixTemp);
 	// debugPrint("Temp = CDT", d_matrixTemp, p, r);
 
-	add<<<p, r>>>(d_matrixE, d_matrixTemp);
+	// add<<<p, r>>>(d_matrixE, d_matrixTemp);
 	// debugPrint("Final = E + Temp", d_matrixE, p, r);
 
 
