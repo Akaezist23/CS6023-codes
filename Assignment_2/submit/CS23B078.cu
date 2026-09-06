@@ -5,7 +5,8 @@
 #include<cuda.h>
 using namespace std;
 
-__global__ void print(int* mat, int r, int c) {
+__global__ void print(char* name, int* mat, int r, int c) {
+	printf("%s\n", name);
 	for (int i = 0; i < r; i++) {
 		for (int j = 0; j < c; j++) {
 			int idx = i * c + j;
@@ -65,9 +66,16 @@ void compute(int p, int q, int r, int *h_matrixA, int *h_matrixB,
 	cudaMalloc(&t_matA, q * p * sizeof(int));
 	cudaMalloc(&t_matD, r * q * sizeof(int));
 	cudaMalloc(&d_matrixTemp, p * r * sizeof(int));
-
+	
+	print("A", d_matrixA, p, q);
 	transpose<<<q, p>>>(d_matrixA, t_matA);
+	print("AT", t_matA, p, q);
+
+	print("D", d_matrixA, p, q);
 	transpose<<<r, q>>>(d_matrixD, t_matD);
+	print("DT", t_matA, p, q);
+	
+
 	multiply<<<p, r>>>(t_matA, d_matrixB, q, d_matrixE);
 	multiply<<<p, r>>>(d_matrixC, t_matD, q, d_matrixTemp);
 	add<<<p, r>>>(d_matrixE, d_matrixTemp);
