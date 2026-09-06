@@ -41,7 +41,7 @@ __global__ void multiply(int* mat1, int* mat2, int l, int* res) { //launch with 
 	for (int x = 0; x < l; x++) {
 		int idx1 = i * l + x; 
 		int idx2 = x * c + j;
-		res[idx3] += mat1[idx1]+mat2[idx2];
+		res[idx3] += mat1[idx1]*mat2[idx2];
 	}
 }
 
