@@ -46,7 +46,7 @@ __global__ void multiply(int* mat1, int* mat2, int l, int* res) { //launch with 
 }
 
 __global__ void add(int* mat1, int* mat2) { //we'll do this in-place, and just add everything to mat1
-	int idx = blockIdx.x * gridDim.x + threadIdx.x;
+	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 	mat1[idx] += mat2[idx];
 }
 
