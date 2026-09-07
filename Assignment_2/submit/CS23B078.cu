@@ -26,32 +26,32 @@ void debugPrint(const char* label, int* d_mat, int r, int c) {
     cudaFree(d_label);
 }
 
-__global__ void transpose(int* d_mat, int* t_mat) { //launch with <<<r, c>>> 
-	int i = blockIdx.x, j = threadIdx.x;
-	int idx1 = i*blockDim.x + j; //this benefits from coalescing
-	int idx2 = j*gridDim.x + i; 
-	t_mat[idx2] = d_mat[idx1];
-}
-
-// __global__ void transpose(int* d_mat, int r, int c, int* t_mat) { //we'll launch this with <<ceil(r/32)*ceil(c/32), BLOCK>>
-// 	__shared__ int tile[1024];
-// 	//threadIdx.x is from 0 to 1023
-// 	int tpr = (c + 31)/32;
-// 	int bl_r = threadIdx.x / 32, bl_c = threadIdx.x % 32;
-// 	int g_r = blockIdx.x / tpr, g_c = blockIdx.x % tpr; 
-// 	//these are indices within the 32*32 shared memory
-// 	int shared = bl_r * 32 + bl_c;
-
-// 	int matr = 32*g_r + bl_r, matc = 32*g_c + bl_c;
-// 	if (matr < r && matc < c) tile[shared] = d_mat[matr * c + matc];
-	
-// 	__syncthreads(); //fills the tile
-// 	//tile now has a 32*32 chunk of our matrix
-// 	int tp_r = g_c, tp_c = g_r;
-// 	shared = bl_c * 32 + bl_r;
-// 	int t_matr = 32*tp_r + bl_r, t_matc = 32*tp_c + bl_c;
-// 	if (t_matr < c && t_matc < r) t_mat[t_matr * r + t_matc] = tile[shared];
+// __global__ void transpose(int* d_mat, int* t_mat) { //launch with <<<r, c>>> 
+// 	int i = blockIdx.x, j = threadIdx.x;
+// 	int idx1 = i*blockDim.x + j; //this benefits from coalescing
+// 	int idx2 = j*gridDim.x + i; 
+// 	t_mat[idx2] = d_mat[idx1];
 // }
+
+__global__ void transpose(int* d_mat, int r, int c, int* t_mat) { //we'll launch this with <<ceil(r/32)*ceil(c/32), BLOCK>>
+	__shared__ int tile[1024];
+	//threadIdx.x is from 0 to 1023
+	int tpr = (c + 31)/32;
+	int bl_r = threadIdx.x / 32, bl_c = threadIdx.x % 32;
+	int g_r = blockIdx.x / tpr, g_c = blockIdx.x % tpr; 
+	//these are indices within the 32*32 shared memory
+	int shared = bl_r * 32 + bl_c;
+
+	int matr = 32*g_r + bl_r, matc = 32*g_c + bl_c;
+	if (matr < r && matc < c) tile[shared] = d_mat[matr * c + matc];
+	
+	// __syncthreads(); //fills the tile
+	//tile now has a 32*32 chunk of our matrix
+	int tp_r = g_c, tp_c = g_r;
+	shared = bl_c * 32 + bl_r;
+	int t_matr = 32*tp_r + bl_r, t_matc = 32*tp_c + bl_c;
+	if (t_matr < c && t_matc < r) t_mat[t_matr * r + t_matc] = tile[shared];
+}
 
 __global__ void multiply(int* mat1, int* mat2, int l, int* res) { //launch with <<<p, r>>>
 	int i = blockIdx.x, j = threadIdx.x;
@@ -98,15 +98,15 @@ void compute(int p, int q, int r, int *h_matrixA, int *h_matrixB,
 	cudaMalloc(&d_matrixTemp, p * r * sizeof(int));
 	
 	// debugPrint("A", d_matrixA, p, q);
-	transpose<<<q, p>>>(d_matrixA, t_matA);
-	// int row = (q + 31)/32, col = (p + 31)/32;
-	// transpose<<<row*col, BLOCK>>>(d_matrixA, q, p, t_matA);
+	// transpose<<<q, p>>>(d_matrixA, t_matA);
+	int row = (q + 31)/32, col = (p + 31)/32;
+	transpose<<<row*col, BLOCK>>>(d_matrixA, q, p, t_matA);
 	// debugPrint("AT", t_matA, q, p);
 
 	// debugPrint("D", d_matrixD, r, q);
-	transpose<<<r, q>>>(d_matrixD, t_matD);
-	// row = (r + 31)/32, col = (q + 31)/32;
-	// transpose<<<row*col, BLOCK>>>(d_matrixD, r, q, t_matD);
+	// transpose<<<r, q>>>(d_matrixD, t_matD);
+	row = (r + 31)/32, col = (q + 31)/32;
+	transpose<<<row*col, BLOCK>>>(d_matrixD, r, q, t_matD);
 	// debugPrint("DT", t_matD, q, r);
 	
 	// debugPrint("B", d_matrixB, q, r);
