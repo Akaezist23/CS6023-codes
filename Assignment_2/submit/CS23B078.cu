@@ -100,6 +100,7 @@ void compute(int p, int q, int r, int *h_matrixA, int *h_matrixB,
 	// debugPrint("A", d_matrixA, p, q);
 	// transpose<<<q, p>>>(d_matrixA, t_matA);
 	int row = (q + 31)/32, col = (p + 31)/32;
+	e;
 	transpose<<<row*col, BLOCK>>>(d_matrixA, q, p, t_matA);
 	// debugPrint("AT", t_matA, q, p);
 
