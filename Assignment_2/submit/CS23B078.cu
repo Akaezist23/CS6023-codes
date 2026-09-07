@@ -45,7 +45,7 @@ __global__ void transpose(int* d_mat, int r, int c, int* t_mat) { //we'll launch
 	int matr = 32*g_r + bl_r, matc = 32*g_c + bl_c;
 	if (matr < r && matc < c) tile[shared] = d_mat[matr * c + matc];
 	
-	// __syncthreads(); //fills the tile
+	__syncthreads(); //fills the tile
 	//tile now has a 32*32 chunk of our matrix
 	int tp_r = g_c, tp_c = g_r;
 	shared = bl_c * 32 + bl_r;
