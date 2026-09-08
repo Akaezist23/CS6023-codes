@@ -141,12 +141,12 @@ void compute(int p, int q, int r, int *h_matrixA, int *h_matrixB,
 	cudaMemset(d_matrixE, 0, p*r*sizeof(int));
 	// multiply<<<p, r>>>(t_matA, d_matrixB, q, d_matrixE);
 	int x = (p + 15)/16, y = (q + 15)/16, z = (r + 15)/16;
-	multiply<<<dim3(x, y, z), 512>>>(t_matA, d_matrixB, p, q, r, d_matrixE);
+	multiply<<<dim3(x, y, z), 513>>>(t_matA, d_matrixB, p, q, r, d_matrixE);
 	// debugPrint("E = ATB", d_matrixE, p, r);
 
 	cudaMemset(d_matrixTemp, 0, p*r*sizeof(int));
 	// multiply<<<p, r>>>(d_matrixC, t_matD, q, d_matrixTemp);
-	multiply<<<dim3(x, y, z), 512>>>(d_matrixC, t_matD, p, q, r, d_matrixTemp);
+	multiply<<<dim3(x, y, z), 513>>>(d_matrixC, t_matD, p, q, r, d_matrixTemp);
 	// debugPrint("Temp = CDT", d_matrixTemp, p, r);
 
 	add<<<p, r>>>(d_matrixE, d_matrixTemp);
