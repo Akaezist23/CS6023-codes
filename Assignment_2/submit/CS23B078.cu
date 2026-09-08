@@ -47,51 +47,51 @@ __global__ void transpose(int* d_mat, int r, int c, int* t_mat) { //we'll launch
 	if (t_matr < c && t_matc < r) t_mat[t_matr * r + t_matc] = tile[shared];
 }
 
-// __global__ void multiply(int* mat1, int* mat2, int l, int* res) { //launch with <<<p, r>>>
-// 	int i = blockIdx.x, j = threadIdx.x;
-// 	int c = blockDim.x;
-// 	int idx3 = i * c + j;
-// 	res[idx3] = 0;
-// 	for (int x = 0; x < l; x++) {
-// 		int idx1 = i * l + x; 
-// 		int idx2 = x * c + j;
-// 		res[idx3] += mat1[idx1]*mat2[idx2];
-// 	}
-// }
-
-__global__ void multiply(int* mat1, int* mat2, int p, int q, int r, int* res) { //call this with ceil(p/16)*ceil(q/16)*ceil(r/16) blocks
-	__shared__ int tiles[512]; //16*16 tile per matrix
-	int i = blockIdx.x, j = blockIdx.y, k = blockIdx.z; //launching using dim3 instead
-	int bl_r = threadIdx.x / 16, bl_c = threadIdx.x % 16;
-	if (threadIdx.x != blockDim.x - 1) { //we'll pass in 1 extra just for the write-back
-		// matrix 1
-        int act_r1 = 16 * i + bl_r, act_c1 = 16 * j + bl_c;
-        int idx1 = 16 * bl_r + bl_c;
-        tiles[idx1] = (act_r1 < p && act_c1 < q) ? mat1[act_r1 * q + act_c1] : 0;
-
-        // matrix 2
-        int act_r2 = 16 * j + bl_r, act_c2 = 16 * k + bl_c;
-        int idx2 = 256 + 16 * bl_r + bl_c;
-        tiles[idx2] = (act_r2 < q && act_c2 < r) ? mat2[act_r2 * r + act_c2] : 0;
-	}
-	__syncthreads();
-	if (threadIdx.x == blockDim.x - 1) {
-		for (int x = 0; x < 16; x++) {
-			for (int y = 0; y < 16; y++) {
-				int res_r = 16 * i + x, res_c = 16 * k + y; // this is the target location
-				if (res_r < p && res_c < r) {
-					int acc = 0;
-					for (int z = 0; z < 16; z++) {
-					    int idx1 = x * 16 + z;        
-					    int idx2 = 256 + z * 16 + y;  
-					    acc += tiles[idx1] * tiles[idx2];
-					}
-					atomicAdd(&res[res_r * r + res_c], acc);
-				}
-			}
-		}
+__global__ void multiply(int* mat1, int* mat2, int l, int* res) { //launch with <<<p, r>>>
+	int i = blockIdx.x, j = threadIdx.x;
+	int c = blockDim.x;
+	int idx3 = i * c + j;
+	res[idx3] = 0;
+	for (int x = 0; x < l; x++) {
+		int idx1 = i * l + x; 
+		int idx2 = x * c + j;
+		res[idx3] += mat1[idx1]*mat2[idx2];
 	}
 }
+
+// __global__ void multiply(int* mat1, int* mat2, int p, int q, int r, int* res) { //call this with ceil(p/16)*ceil(q/16)*ceil(r/16) blocks
+// 	__shared__ int tiles[512]; //16*16 tile per matrix
+// 	int i = blockIdx.x, j = blockIdx.y, k = blockIdx.z; //launching using dim3 instead
+// 	int bl_r = threadIdx.x / 16, bl_c = threadIdx.x % 16;
+// 	if (threadIdx.x != blockDim.x - 1) { //we'll pass in 1 extra just for the write-back
+// 		// matrix 1
+//         int act_r1 = 16 * i + bl_r, act_c1 = 16 * j + bl_c;
+//         int idx1 = 16 * bl_r + bl_c;
+//         tiles[idx1] = (act_r1 < p && act_c1 < q) ? mat1[act_r1 * q + act_c1] : 0;
+
+//         // matrix 2
+//         int act_r2 = 16 * j + bl_r, act_c2 = 16 * k + bl_c;
+//         int idx2 = 256 + 16 * bl_r + bl_c;
+//         tiles[idx2] = (act_r2 < q && act_c2 < r) ? mat2[act_r2 * r + act_c2] : 0;
+// 	}
+// 	__syncthreads();
+// 	if (threadIdx.x == blockDim.x - 1) {
+// 		for (int x = 0; x < 16; x++) {
+// 			for (int y = 0; y < 16; y++) {
+// 				int res_r = 16 * i + x, res_c = 16 * k + y; // this is the target location
+// 				if (res_r < p && res_c < r) {
+// 					int acc = 0;
+// 					for (int z = 0; z < 16; z++) {
+// 					    int idx1 = x * 16 + z;        
+// 					    int idx2 = 256 + z * 16 + y;  
+// 					    acc += tiles[idx1] * tiles[idx2];
+// 					}
+// 					atomicAdd(&res[res_r * r + res_c], acc);
+// 				}
+// 			}
+// 		}
+// 	}
+// }
 
 __global__ void add(int* mat1, int* mat2) { //we'll do this in-place, and just add everything to mat1
 	//not using shared memory, memory coalescing is enough (I think)
