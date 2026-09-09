@@ -61,7 +61,7 @@ __global__ void transpose(int* d_mat, int r, int c, int* t_mat) { //we'll launch
 
 __global__ void multiply(int* mat1, int* mat2, int p, int q, int r, int* res) { //call this with ceil(p/16)*ceil(q/16)*ceil(r/16) blocks
 	__shared__ int tiles[512]; //16*16 tile per matrix
-	printf("Entered multiply\n");
+	// printf("Entered multiply\n");
 	int i = blockIdx.x, j = blockIdx.y, k = blockIdx.z; //launching using dim3 instead
 	int bl_r = threadIdx.x / 16, bl_c = threadIdx.x % 16;
 	if (threadIdx.x != blockDim.x - 1) { //we'll pass in 1 extra just for the write-back
