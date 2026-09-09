@@ -22,7 +22,7 @@ void debugPrint(const char* label, int* d_mat, int r, int c) {
 	printf("Entered debug\n");
     cudaMalloc(&d_label, strlen(label) + 1);
     cudaMemcpy(d_label, label, strlen(label) + 1, cudaMemcpyHostToDevice);
-	printf("Launching print of %d\n", label);
+	printf("Launching print of %s\n", label);
     print<<<1, 1>>>(d_label, d_mat, r, c);
     cudaDeviceSynchronize();  
     cudaFree(d_label);
