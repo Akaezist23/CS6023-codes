@@ -19,6 +19,7 @@ __global__ void print(const char* name, int* mat, int r, int c) {
 
 void debugPrint(const char* label, int* d_mat, int r, int c) {
     char *d_label;
+	printf("Entered debug\n");
     cudaMalloc(&d_label, strlen(label) + 1);
     cudaMemcpy(d_label, label, strlen(label) + 1, cudaMemcpyHostToDevice);
     print<<<1, 1>>>(d_label, d_mat, r, c);
