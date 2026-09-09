@@ -25,6 +25,7 @@ void debugPrint(const char* label, int* d_mat, int r, int c) {
 	printf("Launching print of %s\n", label);
     print<<<1, 1>>>(d_label, d_mat, r, c);
     cudaDeviceSynchronize();  
+	printf("Back from %s\n", label);
     cudaFree(d_label);
 }
 
