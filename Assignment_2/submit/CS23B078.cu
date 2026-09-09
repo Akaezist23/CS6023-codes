@@ -61,6 +61,7 @@ __global__ void transpose(int* d_mat, int r, int c, int* t_mat) { //we'll launch
 
 __global__ void multiply(int* mat1, int* mat2, int p, int q, int r, int* res) { //call this with ceil(p/16)*ceil(q/16)*ceil(r/16) blocks
 	__shared__ int tiles[512]; //16*16 tile per matrix
+	printf("Entered multiply\n");
 	int i = blockIdx.x, j = blockIdx.y, k = blockIdx.z; //launching using dim3 instead
 	int bl_r = threadIdx.x / 16, bl_c = threadIdx.x % 16;
 	if (threadIdx.x != blockDim.x - 1) { //we'll pass in 1 extra just for the write-back
@@ -139,17 +140,24 @@ void compute(int p, int q, int r, int *h_matrixA, int *h_matrixB,
 	debugPrint("B", d_matrixB, q, r);
 	debugPrint("C", d_matrixC, p, q);
 	cudaMemset(d_matrixE, 0, p*r*sizeof(int));
+	cudaDeviceSynchronize();
+
 	// multiply<<<p, r>>>(t_matA, d_matrixB, q, d_matrixE);
 	int x = (p + 15)/16, y = (q + 15)/16, z = (r + 15)/16;
 	multiply<<<dim3(x, y, z), 513>>>(t_matA, d_matrixB, p, q, r, d_matrixE);
 	debugPrint("E = ATB", d_matrixE, p, r);
-
+	cudaDeviceSynchronize();
+	
 	cudaMemset(d_matrixTemp, 0, p*r*sizeof(int));
 	// multiply<<<p, r>>>(d_matrixC, t_matD, q, d_matrixTemp);
 	multiply<<<dim3(x, y, z), 513>>>(d_matrixC, t_matD, p, q, r, d_matrixTemp);
+	cudaDeviceSynchronize();
+
 	debugPrint("Temp = CDT", d_matrixTemp, p, r);
 
 	add<<<p, r>>>(d_matrixE, d_matrixTemp);
+	cudaDeviceSynchronize();
+
 	debugPrint("Final = E + Temp", d_matrixE, p, r);
 
 
