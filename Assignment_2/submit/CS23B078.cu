@@ -19,13 +19,10 @@ __global__ void print(const char* name, int* mat, int r, int c) {
 
 void debugPrint(const char* label, int* d_mat, int r, int c) {
     char *d_label;
-	// printf("Entered debug\n");
     cudaMalloc(&d_label, strlen(label) + 1);
     cudaMemcpy(d_label, label, strlen(label) + 1, cudaMemcpyHostToDevice);
-	// printf("Launching print of %s\n", label);
     print<<<1, 1>>>(d_label, d_mat, r, c);
     cudaDeviceSynchronize();  
-	// printf("Back from %s\n", label);
     cudaFree(d_label);
 }
 
@@ -49,18 +46,6 @@ __global__ void transpose(int* d_mat, int r, int c, int* t_mat) { //we'll launch
 	int t_matr = 32*tp_r + bl_r, t_matc = 32*tp_c + bl_c;
 	if (t_matr < c && t_matc < r) t_mat[t_matr * r + t_matc] = tile[shared];
 }
-
-// __global__ void multiply(int* mat1, int* mat2, int l, int* res) { //launch with <<<p, r>>>
-// 	int i = blockIdx.x, j = threadIdx.x;
-// 	int c = blockDim.x;
-// 	int idx3 = i * c + j;
-// 	res[idx3] = 0;
-// 	for (int x = 0; x < l; x++) {
-// 		int idx1 = i * l + x; 
-// 		int idx2 = x * c + j;
-// 		res[idx3] += mat1[idx1]*mat2[idx2];
-// 	}
-// }
 
 __global__ void multiply(int* mat1, int* mat2, int p, int q, int r, int* res) { //call this with ceil(p/16)*ceil(q/16)*ceil(r/16) blocks
 	__shared__ int tiles[512]; //16*16 tile per matrix
@@ -130,36 +115,22 @@ void compute(int p, int q, int r, int *h_matrixA, int *h_matrixB,
 	cudaMalloc(&t_matD, r * q * sizeof(int));
 	cudaMalloc(&d_matrixTemp, p * r * sizeof(int));
 	
-	// debugPrint("A", d_matrixA, p, q);
 	int row = (q + 31)/32, col = (p + 31)/32;
 	transpose<<<row*col, BLOCK>>>(d_matrixA, q, p, t_matA);
-	// debugPrint("AT", t_matA, q, p);
 
-	// debugPrint("D", d_matrixD, r, q);
 	row = (r + 31)/32, col = (q + 31)/32;
 	transpose<<<row*col, BLOCK>>>(d_matrixD, r, q, t_matD);
-	// debugPrint("DT", t_matD, q, r);
 	
-	// debugPrint("B", d_matrixB, q, r);
-	// debugPrint("C", d_matrixC, p, q);
 	cudaMemset(d_matrixE, 0, p*r*sizeof(int));
 
-	// multiply<<<p, r>>>(t_matA, d_matrixB, q, d_matrixE);
 	int x = (p + 15)/16, y = (q + 15)/16, z = (r + 15)/16;
 	multiply<<<dim3(x, y, z), 257>>>(t_matA, d_matrixB, p, q, r, d_matrixE);
-	// debugPrint("E = ATB", d_matrixE, p, r);
 	
 	cudaMemset(d_matrixTemp, 0, p*r*sizeof(int));
-	// multiply<<<p, r>>>(d_matrixC, t_matD, q, d_matrixTemp);
 	multiply<<<dim3(x, y, z), 257>>>(d_matrixC, t_matD, p, q, r, d_matrixTemp);
-
-	// debugPrint("Temp = CDT", d_matrixTemp, p, r);
 
 	add<<<p, r>>>(d_matrixE, d_matrixTemp);
 	cudaDeviceSynchronize();
-
-	// debugPrint("Final = E + Temp", d_matrixE, p, r);
-
 
 	cudaDeviceSynchronize();
 	cudaFree(t_matA);
