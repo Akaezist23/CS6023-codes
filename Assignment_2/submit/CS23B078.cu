@@ -147,13 +147,13 @@ void compute(int p, int q, int r, int *h_matrixA, int *h_matrixB,
 
 	// multiply<<<p, r>>>(t_matA, d_matrixB, q, d_matrixE);
 	int x = (p + 15)/16, y = (q + 15)/16, z = (r + 15)/16;
-	multiply<<<dim3(x, y, z), 513>>>(t_matA, d_matrixB, p, q, r, d_matrixE);
+	multiply<<<dim3(x, y, z), 257>>>(t_matA, d_matrixB, p, q, r, d_matrixE);
 	cudaDeviceSynchronize();
 	debugPrint("E = ATB", d_matrixE, p, r);
 	
 	cudaMemset(d_matrixTemp, 0, p*r*sizeof(int));
 	// multiply<<<p, r>>>(d_matrixC, t_matD, q, d_matrixTemp);
-	multiply<<<dim3(x, y, z), 513>>>(d_matrixC, t_matD, p, q, r, d_matrixTemp);
+	multiply<<<dim3(x, y, z), 257>>>(d_matrixC, t_matD, p, q, r, d_matrixTemp);
 	cudaDeviceSynchronize();
 
 	debugPrint("Temp = CDT", d_matrixTemp, p, r);
