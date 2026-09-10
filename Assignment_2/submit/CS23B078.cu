@@ -155,7 +155,7 @@ void compute(int p, int q, int r, int *h_matrixA, int *h_matrixB,
 	transpose<<<row*col, BLOCK>>>(d_matrixA, q, p, t_matA);
 
 	row = (r + 31)/32, col = (q + 31)/32;
-	transpose<<<row*col, BLOCK>>>(d_matrixB, r, q, t_matB);
+	transpose<<<row*col, BLOCK>>>(d_matrixB, q, r, t_matB);
 	
 	cudaMemset(d_matrixE, 0, p*r*sizeof(int));
 
