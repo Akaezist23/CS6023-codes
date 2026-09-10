@@ -91,7 +91,7 @@ __global__ void multiply(int* mat1, int* mat2, int p, int q, int r, int* res) { 
 	
 	// matrix 1
     int act_r1 = 16 * i + bl_r, act_c1 = 16 * j + bl_c;
-    int idx1 = 16 * bl_r + bl_c, idx2 = ;
+    int idx1 = 16 * bl_r + bl_c;
     tiles[idx1] = (act_r1 < p && act_c1 < q) ? mat1[act_r1 * q + act_c1] : 0;
 
     // matrix 2
