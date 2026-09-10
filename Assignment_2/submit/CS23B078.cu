@@ -100,17 +100,13 @@ __global__ void multiply(int* mat1, int* mat2, int p, int q, int r, int* res) { 
     tiles[idx2] = (act_r2 < r && act_c2 < q) ? mat2[act_r2 * q + act_c2] : 0; //we will pass the transpose here
 	
 	__syncthreads();
-	int x = bl_r, y = bl_c;
-	int res_r = 32 * i + x, res_c = 32 * k + y;
-	if (res_r < p && res_c < r && threadIdx.x < 32) {
-		int acc = 0;
-		int z = threadIdx.x;
-		// for (int z = 0; z < 32; z++) {
-		    int idx1 = x * 32 + z;        
-		    int idx2 = 1024 + y * 32 + z;  
-		    acc += tiles[idx1] * tiles[idx2];
-		// }
-		atomicAdd(&res[res_r * r + res_c], acc);
+	int res_r = 32 * i + bl_r, res_c = 32 * k + bl_c;
+	if (res_r < p && res_c < r) {
+	    int acc = 0;
+	    for (int z = 0; z < 32; z++) {
+	        acc += tiles[bl_r * 32 + z] * tiles[1024 + z * 32 + bl_c];
+	    }
+	    atomicAdd(&res[res_r * r + res_c], acc);
 	}
 	
 }
