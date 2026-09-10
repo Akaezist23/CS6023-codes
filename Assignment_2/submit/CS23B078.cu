@@ -171,7 +171,7 @@ void compute(int p, int q, int r, int *h_matrixA, int *h_matrixB,
 
 	cudaDeviceSynchronize();
 	cudaFree(t_matA);
-	cudaFree(t_matD);
+	cudaFree(t_matB);
 	cudaFree(d_matrixTemp);
 	
 	/* ****************************************************************** */
