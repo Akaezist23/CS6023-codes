@@ -108,7 +108,7 @@ __global__ void multiply(int* mat1, int* mat2, int p, int q, int r, int* res) { 
 					int acc = 0;
 					for (int z = 0; z < 32; z++) {
 					    int idx1 = x * 32 + z;        
-					    int idx2 = 512 + y * 16 + z;  
+					    int idx2 = 512 + y * 32 + z;  
 					    acc += tiles[idx1] * tiles[idx2];
 					}
 					atomicAdd(&res[res_r * r + res_c], acc);
