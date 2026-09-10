@@ -103,7 +103,7 @@ __global__ void multiply(int* mat1, int* mat2, int p, int q, int r, int* res) { 
 	if (threadIdx.x == 0) {
 		for (int x = 0; x < 16; x++) {
 			for (int y = 0; y < 16; y++) {
-				int res_r = 16 * i + x, res_c = 32 * k + y;
+				int res_r = 16 * i + x, res_c = 16 * k + y;
 				if (res_r < p && res_c < r) {
 					int acc = 0;
 					for (int z = 0; z < 32; z++) {
