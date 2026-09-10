@@ -83,32 +83,32 @@ __global__ void transpose(int* d_mat, int r, int c, int* t_mat) { //we'll launch
 // }
 
 //we'll multiply using A-B in A-BT form
-__global__ void multiply(int* mat1, int* mat2, int p, int q, int r, int* res) { //call this with ceil(p/16)*ceil(q/16)*ceil(r/16) blocks
-	__shared__ int tiles[1024]; //32*16 tile per matrix
+__global__ void multiply(int* mat1, int* mat2, int p, int q, int r, int* res) { //call this with ceil(p/32)*ceil(q/32)*ceil(r/32) blocks
+	__shared__ int tiles[2048]; //32*16 tile per matrix
 	// printf("Entered multiply\n");
 	int i = blockIdx.x, j = blockIdx.y, k = blockIdx.z; //launching using dim3 instead
 	int bl_r = threadIdx.x / 32, bl_c = threadIdx.x % 32;
 	
 	// matrix 1
-    int act_r1 = 16 * i + bl_r, act_c1 = 32 * j + bl_c;
+    int act_r1 = 32 * i + bl_r, act_c1 = 32 * j + bl_c;
     int idx1 = 32 * bl_r + bl_c;
     tiles[idx1] = (act_r1 < p && act_c1 < q) ? mat1[act_r1 * q + act_c1] : 0;
 
     // matrix 2
-    int act_r2 = 16 * k + bl_r, act_c2 = 32 * j + bl_c;
-    int idx2 = 512 + 32 * bl_r + bl_c;
+    int act_r2 = 32 * k + bl_r, act_c2 = 32 * j + bl_c;
+    int idx2 = 1024 + 32 * bl_r + bl_c;
     tiles[idx2] = (act_r2 < r && act_c2 < q) ? mat2[act_r2 * q + act_c2] : 0; //we will pass the transpose here
 	
 	__syncthreads();
 	if (threadIdx.x == 0) {
-		for (int x = 0; x < 16; x++) {
-			for (int y = 0; y < 16; y++) {
-				int res_r = 16 * i + x, res_c = 16 * k + y;
+		for (int x = 0; x < 32; x++) {
+			for (int y = 0; y < 32; y++) {
+				int res_r = 32 * i + x, res_c = 32 * k + y;
 				if (res_r < p && res_c < r) {
 					int acc = 0;
 					for (int z = 0; z < 32; z++) {
 					    int idx1 = x * 32 + z;        
-					    int idx2 = 512 + y * 32 + z;  
+					    int idx2 = 1024 + y * 32 + z;  
 					    acc += tiles[idx1] * tiles[idx2];
 					}
 					atomicAdd(&res[res_r * r + res_c], acc);
@@ -159,12 +159,11 @@ void compute(int p, int q, int r, int *h_matrixA, int *h_matrixB,
 	
 	cudaMemset(d_matrixE, 0, p*r*sizeof(int));
 
-	int x = (p + 15)/16, y = (q + 15)/16, z = (r + 15)/16;
-	y = (y + 1)/2;
-	multiply<<<dim3(x, y, z), 512>>>(t_matA, t_matB, p, q, r, d_matrixE);
+	int x = (p + 31)/32, y = (q + 31)/32, z = (r + 31)/32;
+	multiply<<<dim3(x, y, z), BLOCK>>>(t_matA, t_matB, p, q, r, d_matrixE);
 	
 	cudaMemset(d_matrixTemp, 0, p*r*sizeof(int));
-	multiply<<<dim3(x, y, z), 512>>>(d_matrixC, d_matrixD, p, q, r, d_matrixTemp);
+	multiply<<<dim3(x, y, z), BLOCK>>>(d_matrixC, d_matrixD, p, q, r, d_matrixTemp);
 
 	add<<<p, r>>>(d_matrixE, d_matrixTemp);
 	cudaDeviceSynchronize();
