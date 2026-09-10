@@ -100,7 +100,8 @@ __global__ void multiply(int* mat1, int* mat2, int p, int q, int r, int* res) { 
     tiles[idx2] = (act_r2 < r && act_c2 < q) ? mat2[act_r2 * q + act_c2] : 0; //we will pass the transpose here
 	
 	__syncthreads();
-	int res_r = 32 * i + bl_r, res_c = 32 * k + bl_c;
+	int x = bl_r, y = bl_c;
+	int res_r = 32 * i + x, res_c = 32 * k + y;
 	int z = j;
 	if (res_r < p && res_c < r) {
 		int acc = 0;
