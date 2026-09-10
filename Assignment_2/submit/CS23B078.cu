@@ -102,9 +102,9 @@ __global__ void multiply(int* mat1, int* mat2, int p, int q, int r, int* res) { 
 	__syncthreads();
 	int x = bl_r, y = bl_c;
 	int res_r = 32 * i + x, res_c = 32 * k + y;
-	int z = j;
-	if (res_r < p && res_c < r) {
+	if (res_r < p && res_c < r && threadIdx.x < 32) {
 		int acc = 0;
+		int z = threadIdx.x;
 		// for (int z = 0; z < 32; z++) {
 		    int idx1 = x * 32 + z;        
 		    int idx2 = 1024 + y * 32 + z;  
