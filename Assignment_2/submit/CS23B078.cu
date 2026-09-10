@@ -101,24 +101,9 @@ __global__ void multiply(int* mat1, int* mat2, int p, int q, int r, int* res) { 
 	
 	__syncthreads();
 	if (threadIdx.x == 0) {
-		// for (int x = 0; x < 16; x++) {
-		// 	for (int y = 0; y < 16; y++) {
-		// 		int res_r = 16 * i + x, res_c = 16 * k + y; // this is the target location
-		// 		if (res_r < p && res_c < r) {
-		// 			int acc = 0;
-		// 			for (int z = 0; z < 16; z++) {
-		// 			    int idx1 = x * 16 + z;        
-		// 			    int idx2 = 256 + z * 16 + y;  
-		// 			    acc += tiles[idx1] * tiles[idx2];
-		// 			}
-		// 			atomicAdd(&res[res_r * r + res_c], acc);
-		// 		}
-		// 	}
-		// }
 		for (int x = 0; x < 16; x++) {
 			for (int y = 0; y < 16; y++) {
-				int acc = 0;
-				int res_r = 16 * i + x, res_c = 16 * k + y;
+				int res_r = 16 * i + x, res_c = 32 * k + y;
 				if (res_r < p && res_c < r) {
 					int acc = 0;
 					for (int z = 0; z < 32; z++) {
@@ -161,25 +146,25 @@ void compute(int p, int q, int r, int *h_matrixA, int *h_matrixB,
 	/* ****************************************************************** */
 	/* Write your code here */
 	/* Configure and launch kernels */
-	int *t_matA, *t_matD, *d_matrixTemp;
+	int *t_matA, *t_matB, *d_matrixTemp;
 	cudaMalloc(&t_matA, q * p * sizeof(int));
-	cudaMalloc(&t_matD, r * q * sizeof(int));
+	cudaMalloc(&t_matB, q * r * sizeof(int));
 	cudaMalloc(&d_matrixTemp, p * r * sizeof(int));
 	
 	int row = (q + 31)/32, col = (p + 31)/32;
 	transpose<<<row*col, BLOCK>>>(d_matrixA, q, p, t_matA);
 
 	row = (r + 31)/32, col = (q + 31)/32;
-	transpose<<<row*col, BLOCK>>>(d_matrixD, r, q, t_matD);
+	transpose<<<row*col, BLOCK>>>(d_matrixB, r, q, t_matB);
 	
 	cudaMemset(d_matrixE, 0, p*r*sizeof(int));
 
 	int x = (p + 15)/16, y = (q + 15)/16, z = (r + 15)/16;
 	y = (y + 1)/2;
-	multiply<<<dim3(x, y, z), 512>>>(t_matA, d_matrixB, p, q, r, d_matrixE);
+	multiply<<<dim3(x, y, z), 512>>>(t_matA, t_matB, p, q, r, d_matrixE);
 	
 	cudaMemset(d_matrixTemp, 0, p*r*sizeof(int));
-	multiply<<<dim3(x, y, z), 512>>>(d_matrixC, t_matD, p, q, r, d_matrixTemp);
+	multiply<<<dim3(x, y, z), 512>>>(d_matrixC, d_matrixD, p, q, r, d_matrixTemp);
 
 	add<<<p, r>>>(d_matrixE, d_matrixTemp);
 	cudaDeviceSynchronize();
