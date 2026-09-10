@@ -95,7 +95,7 @@ __global__ void multiply(int* mat1, int* mat2, int p, int q, int r, int* res) { 
     tiles[idx1] = (act_r1 < p && act_c1 < q) ? mat1[act_r1 * q + act_c1] : 0;
 
     // matrix 2
-    int act_r2 = 16 * j + bl_r, act_c2 = 32 * k + bl_c;
+    int act_r2 = 16 * k + bl_r, act_c2 = 32 * j + bl_c;
     int idx2 = 512 + 32 * bl_r + bl_c;
     tiles[idx2] = (act_r2 < r && act_c2 < q) ? mat2[act_r2 * q + act_c2] : 0; //we will pass the transpose here
 	
