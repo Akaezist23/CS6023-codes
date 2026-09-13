@@ -75,14 +75,22 @@ trap cleanup EXIT
 echo "${BLD}Running '$(basename "$RUN_TESTS") ${PASSTHRU[*]:-}' x $N ...${OFF}"
 
 for ((i = 1; i <= N; i++)); do
-    printf "  run %d/%d ...\r" "$i" "$N"
     log="$WORK/run_${i}.log"
+    t0=$(date +%s)
+    echo "[$(date '+%H:%M:%S')] run $i/$N starting..."
     # Redirecting to a file means run_tests.sh's own `[ -t 1 ]` check is
     # false, so it emits plain (uncoloured) text -- easy to parse below.
     bash "$RUN_TESTS" "${PASSTHRU[@]}" > "$log" 2>&1
+    rc=$?
+    t1=$(date +%s)
+    if [ $rc -eq 0 ]; then
+        echo "[$(date '+%H:%M:%S')] run $i/$N ${GRN}done${OFF} ($((t1 - t0))s)"
+    else
+        echo "[$(date '+%H:%M:%S')] run $i/$N done with failures ($((t1 - t0))s, exit $rc) -- see $log"
+    fi
 done
 echo
-echo "${GRN}Done. Aggregating timings...${OFF}"
+echo "${GRN}All $N runs finished. Aggregating timings...${OFF}"
 echo
 
 # -----------------------------------------------------------------------
