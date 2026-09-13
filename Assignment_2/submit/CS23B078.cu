@@ -28,13 +28,13 @@ void debugPrint(const char* label, int* d_mat, int r, int c) {
 
 
 __global__ void transpose(int* d_mat, int r, int c, int* t_mat) { //we'll launch this with <<ceil(r/32)*ceil(c/32), BLOCK>>
-	__shared__ int tile[1024];
-	//threadIdx.x is from 0 to 1023
+	__shared__ int tile[1056]; //32*33 to avoid bank conflicts during transpose
+	//threadIdx.x is from 0 to 1055
 	int tpr = (c + 31)/32; //tiles per row
 	int bl_r = threadIdx.x / 32, bl_c = threadIdx.x % 32;
 	int g_r = blockIdx.x / tpr, g_c = blockIdx.x % tpr; 
 	//these are indices within the 32*32 shared memory
-	int shared = bl_r * 32 + bl_c;
+	int shared = bl_r * 33 + bl_c;
 
 	int matr = 32*g_r + bl_r, matc = 32*g_c + bl_c;
 	if (matr < r && matc < c) tile[shared] = d_mat[matr * c + matc];
@@ -42,7 +42,7 @@ __global__ void transpose(int* d_mat, int r, int c, int* t_mat) { //we'll launch
 	__syncthreads(); //fills the tile
 	//tile now has a 32*32 chunk of our matrix
 	int tp_r = g_c, tp_c = g_r;
-	shared = bl_c * 32 + bl_r;
+	shared = bl_c * 33 + bl_r;
 	int t_matr = 32*tp_r + bl_r, t_matc = 32*tp_c + bl_c;
 	if (t_matr < c && t_matc < r) t_mat[t_matr * r + t_matc] = tile[shared];
 }
