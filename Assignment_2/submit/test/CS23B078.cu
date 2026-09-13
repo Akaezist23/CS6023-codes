@@ -48,7 +48,7 @@ __global__ void transpose(int* d_mat, int r, int c, int* t_mat) { //we'll launch
 
 //we'll multiply using A-B in A-BT form
 __global__ void multiply(int* mat1, int* mat2, int p, int q, int r, int* res) { //call this with ceil(p/32)*ceil(q/32)*ceil(r/32) blocks
-	__shared__ int tiles[2048]; //32*16 tile per matrix
+	__shared__ int tiles[2048]; 
 	// printf("Entered multiply\n");
 	int i = blockIdx.x, j = blockIdx.y, k = blockIdx.z; //launching using dim3 instead
 	int bl_r = threadIdx.x / 32, bl_c = threadIdx.x % 32;
@@ -83,6 +83,40 @@ __global__ void add(int* mat1, int* mat2) { //we'll do this in-place, and just a
 	mat1[idx] += mat2[idx];
 }
 
+//this function is just to combine the multiply and add functionalities.
+__global__ void kernel_call_reducer(int* mat1, int* mat2, int* mat3, int* mat4, int p, int q, int r, int* res) { //does both multiplication and addition
+	__shared__ int tiles[2048 + 2048]; 
+	int i = blockIdx.x, j = blockIdx.y, k = blockIdx.z; //launching using dim3 instead
+	int bl_r = threadIdx.x / 32, bl_c = threadIdx.x % 32;
+	
+	// matrix 1
+    int act_r1 = 32 * i + bl_r, act_c1 = 32 * j + bl_c;
+    int idx1 = 32 * bl_r + bl_c;
+    tiles[idx1] = (act_r1 < p && act_c1 < q) ? mat1[act_r1 * q + act_c1] : 0;
+	tiles[2048 + idx1] = (act_r1 < p && act_c1 < q) ? mat3[act_r1 * q + act_c1] : 0;
+
+    // matrix 2
+    int act_r2 = 32 * k + bl_r, act_c2 = 32 * j + bl_c;
+    int idx2 = 1024 + 32 * bl_r + bl_c;
+    tiles[idx2] = (act_r2 < r && act_c2 < q) ? mat2[act_r2 * q + act_c2] : 0; 
+	tiles[2048 + idx2] = (act_r2 < r && act_c2 < q) ? mat4[act_r2 * q + act_c2] : 0; 
+	
+	__syncthreads();
+	
+	int res_r = 32 * i + bl_r, res_c = 32 * k + bl_c;
+	if (res_r < p && res_c < r) {
+		int acc = 0;
+		for (int z = 0; z < 32; z++) {
+		    int idx1 = bl_r * 32 + z;        
+		    int idx2 = 1024 + bl_c * 32 + z;  
+		    acc += tiles[idx1] * tiles[idx2];
+			acc += tiles[2048 + idx1] * tiles[2048 + idx2];
+		}
+		atomicAdd(&res[res_r * r + res_c], acc);
+	}
+}
+
+
 // function to compute the output matrix
 void compute(int p, int q, int r, int *h_matrixA, int *h_matrixB,
 	         int *h_matrixC, int *h_matrixD, int *h_matrixE){
@@ -108,7 +142,6 @@ void compute(int p, int q, int r, int *h_matrixA, int *h_matrixB,
 	int *t_matA, *t_matB, *d_matrixTemp;
 	cudaMalloc(&t_matA, q * p * sizeof(int));
 	cudaMalloc(&t_matB, q * r * sizeof(int));
-	cudaMalloc(&d_matrixTemp, p * r * sizeof(int));
 	
 	int row = (q + 31)/32, col = (p + 31)/32;
 	transpose<<<row*col, BLOCK>>>(d_matrixA, q, p, t_matA);
@@ -119,18 +152,12 @@ void compute(int p, int q, int r, int *h_matrixA, int *h_matrixB,
 	cudaMemset(d_matrixE, 0, p*r*sizeof(int));
 
 	int x = (p + 31)/32, y = (q + 31)/32, z = (r + 31)/32;
-	multiply<<<dim3(x, y, z), BLOCK>>>(t_matA, t_matB, p, q, r, d_matrixE);
+	kernel_call_reducer<<<dim3(x, y, z), BLOCK>>>(t_matA, t_matB, d_matrixC, d_matrixD, p, q, r, d_matrixE);
 	
-	cudaMemset(d_matrixTemp, 0, p*r*sizeof(int));
-	multiply<<<dim3(x, y, z), BLOCK>>>(d_matrixC, d_matrixD, p, q, r, d_matrixTemp);
-
-	add<<<p, r>>>(d_matrixE, d_matrixTemp);
 	cudaDeviceSynchronize();
 
-	cudaDeviceSynchronize();
 	cudaFree(t_matA);
 	cudaFree(t_matB);
-	cudaFree(d_matrixTemp);
 	
 	/* ****************************************************************** */
 
