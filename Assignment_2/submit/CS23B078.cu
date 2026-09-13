@@ -83,9 +83,9 @@ __global__ void add(int* mat1, int* mat2) { //we'll do this in-place, and just a
 	mat1[idx] += mat2[idx];
 }
 
+//this function is just to combine the multiply and add functionalities.
 __global__ void kernel_call_reducer(int* mat1, int* mat2, int* mat3, int* mat4, int p, int q, int r, int* res) { //does both multiplication and addition
 	__shared__ int tiles[2048 + 2048]; 
-	// printf("Entered multiply\n");
 	int i = blockIdx.x, j = blockIdx.y, k = blockIdx.z; //launching using dim3 instead
 	int bl_r = threadIdx.x / 32, bl_c = threadIdx.x % 32;
 	
@@ -142,7 +142,6 @@ void compute(int p, int q, int r, int *h_matrixA, int *h_matrixB,
 	int *t_matA, *t_matB, *d_matrixTemp;
 	cudaMalloc(&t_matA, q * p * sizeof(int));
 	cudaMalloc(&t_matB, q * r * sizeof(int));
-	// cudaMalloc(&d_matrixTemp, p * r * sizeof(int));
 	
 	int row = (q + 31)/32, col = (p + 31)/32;
 	transpose<<<row*col, BLOCK>>>(d_matrixA, q, p, t_matA);
@@ -155,15 +154,10 @@ void compute(int p, int q, int r, int *h_matrixA, int *h_matrixB,
 	int x = (p + 31)/32, y = (q + 31)/32, z = (r + 31)/32;
 	kernel_call_reducer<<<dim3(x, y, z), BLOCK>>>(t_matA, t_matB, d_matrixC, d_matrixD, p, q, r, d_matrixE);
 	
-	// cudaMemset(d_matrixTemp, 0, p*r*sizeof(int));
-	// multiply<<<dim3(x, y, z), BLOCK>>>(d_matrixC, d_matrixD, p, q, r, d_matrixTemp);
-
-	// add<<<p, r>>>(d_matrixE, d_matrixTemp);
 	cudaDeviceSynchronize();
 
 	cudaFree(t_matA);
 	cudaFree(t_matB);
-	// cudaFree(d_matrixTemp);
 	
 	/* ****************************************************************** */
 
