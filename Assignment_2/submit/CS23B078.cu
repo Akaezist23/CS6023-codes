@@ -6,25 +6,25 @@
 #define BLOCK 1024
 using namespace std;
 
-__global__ void print(const char* name, int* mat, int r, int c) {
-	printf("%s\n", name);
-	for (int i = 0; i < r; i++) {
-		for (int j = 0; j < c; j++) {
-			int idx = i * c + j;
-			printf("%4d", mat[idx]);
-		}
-		printf("\n");
-	}
-}
+// __global__ void print(const char* name, int* mat, int r, int c) {
+// 	printf("%s\n", name);
+// 	for (int i = 0; i < r; i++) {
+// 		for (int j = 0; j < c; j++) {
+// 			int idx = i * c + j;
+// 			printf("%4d", mat[idx]);
+// 		}
+// 		printf("\n");
+// 	}
+// }
 
-void debugPrint(const char* label, int* d_mat, int r, int c) {
-    char *d_label;
-    cudaMalloc(&d_label, strlen(label) + 1);
-    cudaMemcpy(d_label, label, strlen(label) + 1, cudaMemcpyHostToDevice);
-    print<<<1, 1>>>(d_label, d_mat, r, c);
-    cudaDeviceSynchronize();  
-    cudaFree(d_label);
-}
+// void debugPrint(const char* label, int* d_mat, int r, int c) {
+//     char *d_label;
+//     cudaMalloc(&d_label, strlen(label) + 1);
+//     cudaMemcpy(d_label, label, strlen(label) + 1, cudaMemcpyHostToDevice);
+//     print<<<1, 1>>>(d_label, d_mat, r, c);
+//     cudaDeviceSynchronize();  
+//     cudaFree(d_label);
+// }
 
 
 __global__ void transpose(int* d_mat, int r, int c, int* t_mat) { //we'll launch this with <<ceil(r/32)*ceil(c/32), BLOCK>>
@@ -40,47 +40,11 @@ __global__ void transpose(int* d_mat, int r, int c, int* t_mat) { //we'll launch
 	if (matr < r && matc < c) tile[shared] = d_mat[matr * c + matc];
 	
 	__syncthreads(); //fills the tile
-	//tile now has a 32*32 chunk of our matrix
 	int tp_r = g_c, tp_c = g_r;
 	shared = bl_c * 33 + bl_r;
 	int t_matr = 32*tp_r + bl_r, t_matc = 32*tp_c + bl_c;
 	if (t_matr < c && t_matc < r) t_mat[t_matr * r + t_matc] = tile[shared];
 }
-
-// __global__ void multiply(int* mat1, int* mat2, int p, int q, int r, int* res) { //call this with ceil(p/16)*ceil(q/16)*ceil(r/16) blocks
-// 	__shared__ int tiles[512]; //16*16 tile per matrix
-// 	// printf("Entered multiply\n");
-// 	int i = blockIdx.x, j = blockIdx.y, k = blockIdx.z; //launching using dim3 instead
-// 	int bl_r = threadIdx.x / 16, bl_c = threadIdx.x % 16;
-// 	if (threadIdx.x != blockDim.x - 1) { //we'll pass in 1 extra just for the write-back
-// 		// matrix 1
-//         int act_r1 = 16 * i + bl_r, act_c1 = 16 * j + bl_c;
-//         int idx1 = 16 * bl_r + bl_c;
-//         tiles[idx1] = (act_r1 < p && act_c1 < q) ? mat1[act_r1 * q + act_c1] : 0;
-
-//         // matrix 2
-//         int act_r2 = 16 * j + bl_r, act_c2 = 16 * k + bl_c;
-//         int idx2 = 256 + 16 * bl_r + bl_c;
-//         tiles[idx2] = (act_r2 < q && act_c2 < r) ? mat2[act_r2 * r + act_c2] : 0;
-// 	}
-// 	__syncthreads();
-// 	if (threadIdx.x == blockDim.x - 1) {
-// 		for (int x = 0; x < 16; x++) {
-// 			for (int y = 0; y < 16; y++) {
-// 				int res_r = 16 * i + x, res_c = 16 * k + y; // this is the target location
-// 				if (res_r < p && res_c < r) {
-// 					int acc = 0;
-// 					for (int z = 0; z < 16; z++) {
-// 					    int idx1 = x * 16 + z;        
-// 					    int idx2 = 256 + z * 16 + y;  
-// 					    acc += tiles[idx1] * tiles[idx2];
-// 					}
-// 					atomicAdd(&res[res_r * r + res_c], acc);
-// 				}
-// 			}
-// 		}
-// 	}
-// }
 
 //we'll multiply using A-B in A-BT form
 __global__ void multiply(int* mat1, int* mat2, int p, int q, int r, int* res) { //call this with ceil(p/32)*ceil(q/32)*ceil(r/32) blocks
