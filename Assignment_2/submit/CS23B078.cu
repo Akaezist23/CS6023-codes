@@ -86,6 +86,7 @@ __global__ void add(int* mat1, int* mat2) { //we'll do this in-place, and just a
 //this function is just to combine the multiply and add functionalities.
 __global__ void kernel_call_reducer(int* mat1, int* mat2, int* mat3, int* mat4, int p, int q, int r, int* res) { //does both multiplication and addition
 	__shared__ int tiles[2048 + 2048]; 
+
 	int i = blockIdx.x, j = blockIdx.y, k = blockIdx.z; //launching using dim3 instead
 	int bl_r = threadIdx.x / 32, bl_c = threadIdx.x % 32;
 	
