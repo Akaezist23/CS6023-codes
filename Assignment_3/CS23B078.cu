@@ -213,6 +213,11 @@ int main(int argc, char **argv)
         {
             outfile << h_tent[v] << "\n";
         }
+
+        for (int v = 0; v < N; ++v)
+        {
+            cout << h_tent[v] << "\n";
+        }
     }
 
     cudaFree(d_offsets);
