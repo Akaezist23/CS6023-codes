@@ -78,6 +78,7 @@ void naive_approach(
     while (*updated) {
         *updated = false;
         bellman_ford<<<ceil((double)N / BLOCK_SIZE), BLOCK_SIZE>>>(dist.get(), d_offsets, d_neighs, d_weights, N, E, updated);
+        cudaDeviceSynchronize();
     }
     cudaFree(updated);
 }
