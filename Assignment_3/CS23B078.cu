@@ -22,7 +22,7 @@
 // CUDA KERNELS
 // ============================================================================
 __global__ void bellman_ford(
-    device_ptr<int> dist,
+    int* dist,
     int* d_offsets,
     int* d_neighs,
     int* d_weights,
@@ -33,7 +33,7 @@ __global__ void bellman_ford(
 {
     int u = blockIdx.x * blockDim.x + threadIdx.x;
     if (u >= N || dist[u] == INF) return;
-    for (int i = d_offsets[u]; i < ((u + 1 < E) ? d_offsets[u + 1] : E); ++i) {
+    for (int i = d_offsets[u]; i < d_offsets[u + 1]; ++i) {
         int new_dist = dist[u] + d_weights[i];
         int v = d_neighs[i];
         if (new_dist < dist[v]) {
@@ -41,8 +41,7 @@ __global__ void bellman_ford(
                 *updated = true;
             }
         }
-    }
-    
+    }   
 }
 
 
@@ -78,7 +77,7 @@ void naive_approach(
 
     while (*updated) {
         *updated = false;
-        bellman_ford<<<ceil((double)N / BLOCK_SIZE), BLOCK_SIZE>>>(dist, d_offsets, d_neighs, d_weights, N, E, updated);
+        bellman_ford<<<ceil((double)N / BLOCK_SIZE), BLOCK_SIZE>>>(dist.get(), d_offsets, d_neighs, d_weights, N, E, updated);
     }
     cudaFree(updated);
 }
@@ -220,7 +219,7 @@ int main(int argc, char **argv)
     cudaFree(d_neighs);
     cudaFree(d_weights);
     cudaFree(d_tent);
-    
+
     delete[] h_tent;
     delete[] offsets;
     delete[] neighs;
