@@ -66,7 +66,7 @@ run_test() {
     fi
 
     # Run solver
-    $SOLVER_EXEC "$input_file" "$temp_file" 
+    $SOLVER_EXEC "$input_file" "$temp_file" > /dev/null 2>&1
 
     # Compare outputs, ignoring whitespace and blank lines
     if diff -w -B "$temp_file" "$expected_file" > /dev/null 2>&1; then
