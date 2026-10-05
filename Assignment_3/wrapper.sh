@@ -15,4 +15,4 @@ echo
 echo "Build successful."
 echo
 
-./run_tests.s
+./run_tests.sh "$@"
