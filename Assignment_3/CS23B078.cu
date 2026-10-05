@@ -216,7 +216,7 @@ int main(int argc, char **argv)
 
         for (int v = 0; v < N; ++v)
         {
-            cout << h_tent[v] << "\n";
+            std::cout << h_tent[v] << "\n";
         }
     }
 
