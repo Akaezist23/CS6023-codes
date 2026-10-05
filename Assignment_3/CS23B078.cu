@@ -71,7 +71,7 @@ void naive_approach(
     thrust::device_ptr<int> dist(d_tent);
     thrust::fill(dist, dist + N, INF);
     dist[source] = 0;
-    bool* udpdated;
+    bool* udpated;
     cudaMallocManaged(&updated, sizeof(bool));
     *updated = true;
 
