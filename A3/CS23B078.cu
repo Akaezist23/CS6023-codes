@@ -9,6 +9,9 @@
 #include <thrust/unique.h>
 #include <thrust/binary_search.h>
 #include <thrust/copy.h>
+#include <thrust/transform.h>
+#include <thrust/transform_reduce.h>
+#include <thrust/remove.h>
 #include <thrust/fill.h>
 
 #define INF 2147483647 // simply INT_MAX
@@ -35,7 +38,7 @@ __global__ void bellman_ford(
     for (int i = d_offsets[u]; i < d_offsets[u + 1]; i++) {
         int new_dist = dist[u] + d_weights[i];
         int v = d_neighs[i];
-        if ( < dist[v]) {
+        if (new_dist < dist[v]) {
            if (atomicMin(&dist[v], new_dist) > new_dist) {
                 *updated = true;
             }
