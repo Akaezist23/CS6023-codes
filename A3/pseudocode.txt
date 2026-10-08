@@ -1,0 +1,66 @@
+solve(source):
+    # ---------- INIT (once per source) ----------
+    tent[:]  = INF;  state[:] = NONE;  stamp[:] = -1
+    tent[source] = 0
+    near = [source];  state[source] = NEAR
+    far  = []
+    bucket_id = 0
+    last_cutoff = 0                    # Dmin = 0 for the first batch
+    if STATIC:   cutoff = delta;  active_delta = delta
+    if ADAPTIVE: cutoff = 0;      active_delta = 1     # no log for this first batch
+
+    while true:
+        settled = []
+
+        # ---------- PHASE 1: light loop ----------
+        while near not empty:
+            parallel for u in near:
+                state[u] = NONE
+                if atomicExch(stamp[u], bucket_id) != bucket_id:
+                    push u to settled                  # once per bucket
+                for edge (u,v,w) with w <= active_delta:
+                    nd = tent[u] + w
+                    if atomicMin(tent[v], nd) > nd:    # improved
+                        if nd <= cutoff:
+                            if CAS(state[v], NONE -> NEAR) or CAS(state[v], FAR -> NEAR):
+                                push v to near_next    # FAR->NEAR leaves a stale far entry
+                        else:
+                            if CAS(state[v], NONE -> FAR):
+                                push v to far
+            swap(near, near_next);  near_next.count = 0
+
+        # ---------- PHASE 2: heavy (once per bucket) ----------
+        parallel for u in settled:
+            for edge (u,v,w) with w > active_delta:
+                nd = tent[u] + w                       # always > cutoff
+                if atomicMin(tent[v], nd) > nd:
+                    if CAS(state[v], NONE -> FAR):
+                        push v to far
+
+        # ---------- PHASE 3: refill ----------
+        last_cutoff = cutoff
+        far = { v in far : tent[v] > last_cutoff }     # prune ghosts (refresh keys from tent)
+        if far empty: break
+
+        if STATIC:
+            Dmin   = min(tent[v] for v in far)         # parallel reduce
+            cutoff = Dmin + delta
+            near   = { v in far : tent[v] <= cutoff }
+            far    = { v in far : tent[v] >  cutoff }  # compaction
+        else:
+            keys = tent[far]
+            sort_by_key(keys, far)
+            Dmin   = keys[0]                           # re-anchor
+            i      = min(K-1, |far|-1)
+            cutoff = keys[i]
+            d_raw  = cutoff - Dmin
+            print d_raw                                # even if 0
+            active_delta = (d_raw == 0) ? 1 : d_raw
+            cnt  = upper_bound(keys, cutoff)           # right-inclusive, no truncation
+            near = far[0 : cnt]
+            far  = far[cnt : ]
+
+        state[near] = NEAR
+        bucket_id++
+
+    return tent
