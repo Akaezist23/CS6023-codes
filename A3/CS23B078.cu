@@ -73,7 +73,7 @@ __global__ void light_phase(
     __threadfence(); // makes sure ur change is visible to other threads
 
     if (atomicExch(&d_bucket[u], *curr_bucket) != *curr_bucket) { 
-        __threadfence(); // check why this thing is here
+        __threadfence();
         d_set[atomicAdd(set_cnt, 1)] = u;
     }
     int du = atomicAdd(&dist[u], 0); // to prevent cached reads
@@ -84,7 +84,7 @@ __global__ void light_phase(
         int v = d_neighs[i];
         if (atomicMin(&dist[v], new_dist) > new_dist) {
             if (new_dist <= *cutoff) {
-                if (atomicExch(&d_state[v], NEAR) != NEAR) { //check this part, might be incorrect
+                if (atomicExch(&d_state[v], NEAR) != NEAR) { 
                     d_near_out[atomicAdd(near_out, 1)] = v;
                 }
             }
@@ -148,6 +148,17 @@ struct GetDist {
 // ============================================================================
 // SINGLE SOURCE DELTA-STEPPING DRIVER
 // ============================================================================
+
+// counters
+int* g_near_in = nullptr;
+int* g_near_out = nullptr;
+int* g_curr_bucket = nullptr;
+int* g_cutoff = nullptr;
+int* g_prev_cutoff = nullptr;
+int* g_delta = nullptr;
+int* g_K = nullptr;
+int* g_set_cnt = nullptr;
+int* g_far_idx = nullptr;
 
 void naive_approach(
     int source, 
@@ -218,24 +229,16 @@ void run_delta_stepping_single_source(
 
     bool is_static = false;
 
-    int* near_in; 
-    int* near_out;
-    int* curr_bucket;
-    int* cutoff;
-    int* prev_cutoff;
-    int* delta;
-    int* K;
-    int* set_cnt;
-    int* far_idx;
-    cudaMallocManaged(&near_in, sizeof(int));
-    cudaMallocManaged(&near_out, sizeof(int));
-    cudaMallocManaged(&curr_bucket, sizeof(int));
-    cudaMallocManaged(&cutoff, sizeof(int));
-    cudaMallocManaged(&prev_cutoff, sizeof(int));
-    cudaMallocManaged(&delta, sizeof(int));
-    cudaMallocManaged(&K, sizeof(int));
-    cudaMallocManaged(&set_cnt, sizeof(int));
-    cudaMallocManaged(&far_idx, sizeof(int));
+    // counters are allocated once in main; local aliases keep the names short
+    int* near_in = g_near_in;
+    int* near_out = g_near_out;
+    int* curr_bucket = g_curr_bucket;
+    int* cutoff = g_cutoff;
+    int* prev_cutoff = g_prev_cutoff;
+    int* delta = g_delta;
+    int* K = g_K;
+    int* set_cnt = g_set_cnt;
+    int* far_idx = g_far_idx;
 
     *K = _K;
     *curr_bucket = 0;
@@ -342,16 +345,6 @@ void run_delta_stepping_single_source(
         cudaDeviceSynchronize();
         (*curr_bucket)++;
     }
-
-    cudaFree(near_in);
-    cudaFree(near_out);
-    cudaFree(curr_bucket);
-    cudaFree(cutoff);
-    cudaFree(prev_cutoff);
-    cudaFree(delta);
-    cudaFree(K);
-    cudaFree(set_cnt);
-    cudaFree(far_idx);
 }
 
 // ============================================================================
@@ -430,6 +423,16 @@ int main(int argc, char **argv)
     cudaMalloc(&d_set, N * sizeof(int));
     cudaMalloc(&d_keys, N * sizeof(int));
 
+    cudaMallocManaged(&g_near_in, sizeof(int));
+    cudaMallocManaged(&g_near_out, sizeof(int));
+    cudaMallocManaged(&g_curr_bucket, sizeof(int));
+    cudaMallocManaged(&g_cutoff, sizeof(int));
+    cudaMallocManaged(&g_prev_cutoff, sizeof(int));
+    cudaMallocManaged(&g_delta, sizeof(int));
+    cudaMallocManaged(&g_K, sizeof(int));
+    cudaMallocManaged(&g_set_cnt, sizeof(int));
+    cudaMallocManaged(&g_far_idx, sizeof(int));
+
 
     /*
     ToDo
@@ -503,6 +506,16 @@ int main(int argc, char **argv)
     cudaFree(d_bucket);
     cudaFree(d_set);
     cudaFree(d_keys);
+
+    cudaFree(g_near_in);
+    cudaFree(g_near_out);
+    cudaFree(g_curr_bucket);
+    cudaFree(g_cutoff);
+    cudaFree(g_prev_cutoff);
+    cudaFree(g_delta);
+    cudaFree(g_K);
+    cudaFree(g_set_cnt);
+    cudaFree(g_far_idx);
 
     delete[] h_tent;
     delete[] offsets;
