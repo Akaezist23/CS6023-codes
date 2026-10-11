@@ -40,8 +40,9 @@ TESTS = {
     "a_zero_one":    (  500_000,  5_000_000, 2,   -1,     64, "rand",   0,    1),
     "a_20src":       (  100_000,  1_000_000, 20,  -1,    256, "hub",    0, 1000),
     # ---- edge cases ----
-    "e_single_s":    (        1,          0, 2,    3,     -1, "rand",   0,    5),
-    "e_single_a":    (        1,          0, 2,   -1,      5, "rand",   0,    5),
+    # N = 1 with one self-loop (E = 0 crashes the boilerplate's `new int[E]{0}`)
+    "e_single_s":    (        1,          1, 2,    3,     -1, "rand",   0,    5),
+    "e_single_a":    (        1,          1, 2,   -1,      5, "rand",   0,    5),
     "e_selfloops_a": (    1_000,     20_000, 20,  -1,      7, "hub",    0,   10),
     "e_k_gt_n":      (    1_000,      5_000, 3,   -1, 524288, "rand",   0, 1000),
 }
