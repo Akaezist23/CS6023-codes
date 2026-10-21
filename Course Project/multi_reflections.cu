@@ -88,7 +88,6 @@ __device__ Vec3 rayColor(Vec3 origin, Vec3 dir, Sphere* scene, int scene_size, i
         if (hit < 0) {
             // Miss: draw a simple sky gradient (white near horizon -> blue up top).
             if (!afterHit) {
-                afterHit = true;
                 float t = 0.5f * (dir.y + 1.0f);
                 return Vec3(1, 1, 1) * (1 - t) + Vec3(0.4f, 0.6f, 1.0f) * t;
             } else {
@@ -96,6 +95,7 @@ __device__ Vec3 rayColor(Vec3 origin, Vec3 dir, Sphere* scene, int scene_size, i
                 break;
             }
         }
+        afterHit = true;
 
         // The point we hit, and the surface normal there.
         p = origin + dir * tHit;
