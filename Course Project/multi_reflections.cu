@@ -158,7 +158,7 @@ int main() {
     Vec3  cameraPos(0, 1, 3);
     float aspect = (float)W / H;
 
-    renderKernel<<<dim3((W + 31) / 32, (H + 31) / 32), dim3(32, 32)>>>(d_image, d_scene, scene.size(), W, H, cameraPos, aspect, 5);
+    renderKernel<<<dim3((W + 31) / 32, (H + 31) / 32), dim3(32, 32)>>>(d_image, d_scene, scene.size(), W, H, cameraPos, aspect, 1);
     // cudaDeviceSynchronize(); 
     cudaMemcpy(image.data(), d_image, image.size(), cudaMemcpyDeviceToHost);
     cudaFree(d_image);
