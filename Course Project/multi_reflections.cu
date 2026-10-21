@@ -78,6 +78,7 @@ __device__ Vec3 rayColor(Vec3 origin, Vec3 dir, Sphere* scene, int scene_size, i
     float tHit;
     Vec3 base(0.2f, 0.2f, 0.f);
     int hit;
+    Vec3 p, n;
     do {
         depth--;
         hit = closestHit(origin, dir, scene, scene_size, tHit);
@@ -89,8 +90,8 @@ __device__ Vec3 rayColor(Vec3 origin, Vec3 dir, Sphere* scene, int scene_size, i
         }
 
         // The point we hit, and the surface normal there.
-        Vec3 p = origin + dir * tHit;
-        Vec3 n = normalize(p - scene[hit].center);
+        p = origin + dir * tHit;
+        n = normalize(p - scene[hit].center);
         // Base color: checkerboard for the floor, solid color otherwise.
         base = scene[hit].color;
         origin = p + n * 0.001f; // move origin slightly above the surface to avoid self-intersection
