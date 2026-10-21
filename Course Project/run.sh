@@ -21,7 +21,7 @@ echo "Wrote image.png"
 
 # A shell started with `!bash run.sh` can't draw into the Colab output cell,
 # so display image.png from Python in the same cell:
-  !bash run.sh
-  from IPython.display import Image, display; display(Image('image.png'))
+#   !bash run.sh
+#   from IPython.display import Image, display; display(Image('image.png'))
 
 
