@@ -105,7 +105,7 @@ __device__ Vec3 rayColor(Vec3 origin, Vec3 dir, Sphere* scene, int scene_size, i
         origin = p + n * 0.001f; // move origin slightly above the surface to avoid self-intersection
         dir = normalize(dir - n * 2 * dot(dir, n)); // direction of the reflected ray
         
-    } while (depth > 0);
+    } while (depth >= 0);
     
     
     if (scene[hit].isFloor) {
