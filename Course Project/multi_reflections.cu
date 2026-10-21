@@ -13,6 +13,7 @@
 // ============================================================================
 
 #include <cstdio>
+#include <cstdlib>
 #include <cmath>
 #include <vector>
 #include <cuda_runtime.h>
@@ -146,7 +147,11 @@ __global__ void renderKernel(unsigned char* image, Sphere* scene, int scene_size
     image[idx + 2] = (unsigned char)(fmin(color.z, 1.0f) * 255);
 }
 
-int main() {
+int main(int argc, char** argv) {
+    // Reflection depth (number of bounces), from the command line: ./multi_reflections <depth>
+    int depth = (argc > 1) ? std::atoi(argv[1]) : 0;
+    if (depth < 0) { fprintf(stderr, "depth must be >= 0\n"); return 1; }
+
     const int W = 800, H = 600;
     std::vector<unsigned char> image(W * H * 3);
     Sphere* d_scene;
@@ -158,7 +163,7 @@ int main() {
     Vec3  cameraPos(0, 1, 3);
     float aspect = (float)W / H;
 
-    renderKernel<<<dim3((W + 31) / 32, (H + 31) / 32), dim3(32, 32)>>>(d_image, d_scene, scene.size(), W, H, cameraPos, aspect, 5);
+    renderKernel<<<dim3((W + 31) / 32, (H + 31) / 32), dim3(32, 32)>>>(d_image, d_scene, scene.size(), W, H, cameraPos, aspect, depth);
     // cudaDeviceSynchronize(); 
     cudaMemcpy(image.data(), d_image, image.size(), cudaMemcpyDeviceToHost);
     cudaFree(d_image);
@@ -169,7 +174,7 @@ int main() {
     fprintf(f, "P6\n%d %d\n255\n", W, H);
     fwrite(image.data(), 1, image.size(), f);
     fclose(f);
-    printf("Wrote image.ppm (%dx%d)\n", W, H);
+    printf("Wrote image.ppm (%dx%d, depth %d)\n", W, H, depth);
     return 0;
 }
 
