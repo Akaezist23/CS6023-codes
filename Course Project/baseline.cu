@@ -136,7 +136,6 @@ int main() {
     unsigned char* d_image;
     cudaMalloc(&d_image, image.size());
     cudaMalloc(&d_scene, scene.size() * sizeof(Sphere));
-    cudaMemcpy(d_image, image.data(), image.size(), cudaMemcpyHostToDevice);
     cudaMemcpy(d_scene, scene.data(), scene.size() * sizeof(Sphere), cudaMemcpyHostToDevice);
     // x = right, y = up, z = toward the viewer (spheres sit near z = -1).
     Vec3  cameraPos(0, 1, 3);
