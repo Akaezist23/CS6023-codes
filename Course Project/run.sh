@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+rm image.ppm
+rm image.png
+
 # Build
 # g++ -O2 -o raytracer_cpu starter_raytracer_cpu.cpp
 # nvcc baseline.cu -o baseline -O2 -std=c++11
@@ -23,3 +26,5 @@ echo "Wrote image.png"
 # so display image.png from Python in the same cell:
   !bash run.sh
   from IPython.display import Image, display; display(Image('image.png'))
+
+
