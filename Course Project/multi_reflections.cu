@@ -39,15 +39,11 @@ struct Sphere {
 };
 
 // The whole scene is just a list of spheres. (The floor is a giant sphere.)
-// std::vector<Sphere> scene = {
-//     { Vec3(0, -1000.5f, -1), 1000.0f, Vec3(0.5f, 0.5f, 0.5f), 0.2f, true  }, // floor
-//     { Vec3(0,     0.0f, -1),    0.5f, Vec3(0.9f, 0.2f, 0.2f), 0.5f, false }, // red
-//     { Vec3(-1.1f, 0.0f, -1),    0.5f, Vec3(0.2f, 0.7f, 0.3f), 0.5f, false }, // green
-//     { Vec3( 1.1f, 0.0f, -1),    0.5f, Vec3(0.2f, 0.4f, 0.9f), 0.5f, false }, // blue
-
-// };
-
 std::vector<Sphere> scene = {
+    { Vec3(0, -1000.5f, -1), 1000.0f, Vec3(0.5f, 0.5f, 0.5f), 0.2f, true  }, // floor
+    { Vec3(0,     0.0f, -1),    0.5f, Vec3(0.9f, 0.2f, 0.2f), 0.5f, false }, // red
+    { Vec3(-1.1f, 0.0f, -1),    0.5f, Vec3(0.2f, 0.7f, 0.3f), 0.5f, false }, // green
+    { Vec3( 1.1f, 0.0f, -1),    0.5f, Vec3(0.2f, 0.4f, 0.9f), 0.5f, false }, // blue
     { Vec3( -5.28f, -0.286f,  -6.35f), 0.24f, Vec3(0.69f, 0.13f, 0.77f), 0.7f, false },
     { Vec3(  1.09f,  0.113f,  -0.06f), 0.17f, Vec3(0.22f, 0.24f, 0.65f), 0.3f, false },  // flying
     { Vec3(  0.21f, -0.333f,  -6.39f), 0.18f, Vec3(0.58f, 0.71f, 0.19f), 0.5f, false },
@@ -65,8 +61,9 @@ std::vector<Sphere> scene = {
     { Vec3( -0.84f, -0.312f,  -6.13f), 0.20f, Vec3(0.90f, 0.17f, 0.76f), 0.5f, false },
     { Vec3(  0.07f, -0.167f,  -5.28f), 0.34f, Vec3(0.54f, 0.81f, 0.22f), 0.0f, false },
     { Vec3( -1.39f,  0.855f,   0.58f), 0.19f, Vec3(0.37f, 0.95f, 0.55f), 0.5f, false },  // flying
-
 };
+
+
 
 // A ray is a point p(t) = origin + t * dir. This finds where (if anywhere) the
 // ray hits the sphere, returning the nearest distance t in front of the camera,
