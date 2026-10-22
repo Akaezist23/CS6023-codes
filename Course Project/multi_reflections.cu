@@ -47,7 +47,7 @@ struct Sphere {
 
 // };
 
-std::vector<Sphere> scence = {
+std::vector<Sphere> scene = {
     { Vec3( -5.28f, -0.286f,  -6.35f), 0.24f, Vec3(0.69f, 0.13f, 0.77f), 0.7f, false },
     { Vec3(  1.09f,  0.113f,  -0.06f), 0.17f, Vec3(0.22f, 0.24f, 0.65f), 0.3f, false },  // flying
     { Vec3(  0.21f, -0.333f,  -6.39f), 0.18f, Vec3(0.58f, 0.71f, 0.19f), 0.5f, false },
