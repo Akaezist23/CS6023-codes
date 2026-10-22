@@ -34,15 +34,17 @@ struct Sphere {
     Vec3  center;
     float radius;
     Vec3  color;
+    float reflectivity; // 0 = diffuse, 1 = perfect mirror
     bool  isFloor;   // if true, we draw a checkerboard instead of a solid color
 };
 
 // The whole scene is just a list of spheres. (The floor is a giant sphere.)
 std::vector<Sphere> scene = {
-    { Vec3(0, -1000.5f, -1), 1000.0f, Vec3(0.5f, 0.5f, 0.5f), true  }, // floor
-    { Vec3(0,     0.0f, -1),    0.5f, Vec3(0.9f, 0.2f, 0.2f), false }, // red
-    { Vec3(-1.1f, 0.0f, -1),    0.5f, Vec3(0.2f, 0.7f, 0.3f), false }, // green
-    { Vec3( 1.1f, 0.0f, -1),    0.5f, Vec3(0.2f, 0.4f, 0.9f), false }, // blue
+    { Vec3(0, -1000.5f, -1), 1000.0f, Vec3(0.5f, 0.5f, 0.5f), 0.f, true  }, // floor
+    { Vec3(0,     0.0f, -1),    0.5f, Vec3(0.9f, 0.2f, 0.2f), 0.5f, false }, // red
+    { Vec3(-1.1f, 0.0f, -1),    0.5f, Vec3(0.2f, 0.7f, 0.3f), 0.5f, false }, // green
+    { Vec3( 1.1f, 0.0f, -1),    0.5f, Vec3(0.2f, 0.4f, 0.9f), 0.5f, false }, // blue
+
 };
 
 // A ray is a point p(t) = origin + t * dir. This finds where (if anywhere) the
@@ -81,7 +83,6 @@ __device__ Vec3 rayColor(Vec3 origin, Vec3 dir, Sphere* scene, int scene_size, i
     int hit = -1;
     Vec3 p, n;
     Vec3 color(0.f, 0.f, 0.f);
-    float k = 0.5f; //reflectivity, hard-coding for now.
     float curr = 1;
     do {
         depth--;
@@ -103,6 +104,7 @@ __device__ Vec3 rayColor(Vec3 origin, Vec3 dir, Sphere* scene, int scene_size, i
             bool white = ((cx + cz) & 1) == 0;
             base = white ? Vec3(0.9f, 0.9f, 0.9f) : Vec3(0.2f, 0.2f, 0.2f);
         }
+        int k = scene[hit].reflectivity;
         
         Vec3  toLight = normalize(lightPos - p);
         float diffuse = std::fmax(0.0f, dot(n, toLight));
