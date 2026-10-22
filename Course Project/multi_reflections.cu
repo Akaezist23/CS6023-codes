@@ -77,54 +77,51 @@ __device__ Vec3 rayColor(Vec3 origin, Vec3 dir, Sphere* scene, int scene_size, i
     // x = right, y = up, z = toward the camera.
     Vec3  lightPos(4, 6, 2);
     float tHit;
-    Vec3 base(0.2f, 0.2f, 0.f);
-    int hit, prevHit = -1;
-    bool afterHit = false;
+    Vec3 base(0.2f, 0.2f, 0.2f);
+    int hit = -1;
     Vec3 p, n;
+    Vec3 color(0.f, 0.f, 0.f);
+    float k = 0.5f; //reflectivity, hard-coding for now.
+    float curr = 1;
     do {
         depth--;
-        prevHit = hit;
         hit = closestHit(origin, dir, scene, scene_size, tHit);
     
         if (hit < 0) {
             // Miss: draw a simple sky gradient (white near horizon -> blue up top).
-            if (!afterHit) {
-                float t = 0.5f * (dir.y + 1.0f);
-                return Vec3(1, 1, 1) * (1 - t) + Vec3(0.4f, 0.6f, 1.0f) * t;
-            } else {
-                hit = prevHit; // n and p are still the previous ones
-                break;
-            }
+            float t = 0.5f * (dir.y + 1.0f);
+            color = color + (Vec3(1, 1, 1) * (1 - t) + Vec3(0.4f, 0.6f, 1.0f) * t) * curr;
+            break;
         }
-        afterHit = true;
-
         // The point we hit, and the surface normal there.
         p = origin + dir * tHit;
         n = normalize(p - scene[hit].center);
         // Base color: checkerboard for the floor, solid color otherwise.
         base = scene[hit].color;
+        if (scene[hit].isFloor) {
+            int cx = (int)std::floor(p.x), cz = (int)std::floor(p.z);
+            bool white = ((cx + cz) & 1) == 0;
+            base = white ? Vec3(0.9f, 0.9f, 0.9f) : Vec3(0.2f, 0.2f, 0.2f);
+        }
+        
+        Vec3  toLight = normalize(lightPos - p);
+        float diffuse = std::fmax(0.0f, dot(n, toLight));
+        
+        // Hard shadow: shoot a ray toward the light; if it hits something, we're shadowed.
+        float shadowT;
+        int   blocked = closestHit(p + n * 0.001f, toLight, scene, scene_size, shadowT);
+        float shade = (blocked >= 0) ? 0.3f : 1.0f;
+        
+        float brightness = 0.15f + diffuse * shade;   // 0.15 = a little ambient light
+        Vec3 local = base * brightness;
+        color = color + local * curr * (1.0f - k);
+        curr *= k;
         origin = p + n * 0.001f; // move origin slightly above the surface to avoid self-intersection
         dir = normalize(dir - n * 2 * dot(dir, n)); // direction of the reflected ray
         
     } while (depth >= 0);
-    
-    
-    if (scene[hit].isFloor) {
-        int cx = (int)std::floor(p.x), cz = (int)std::floor(p.z);
-        bool white = ((cx + cz) & 1) == 0;
-        base = white ? Vec3(0.9f, 0.9f, 0.9f) : Vec3(0.2f, 0.2f, 0.2f);
-    }
-    // Diffuse lighting: how directly does the surface face the light?
-    Vec3  toLight = normalize(lightPos - p);
-    float diffuse = std::fmax(0.0f, dot(n, toLight));
-
-    // Hard shadow: shoot a ray toward the light; if it hits something, we're shadowed.
-    float shadowT;
-    int   blocked = closestHit(p + n * 0.001f, toLight, scene, scene_size, shadowT);
-    float shade = (blocked >= 0) ? 0.3f : 1.0f;
-
-    float brightness = 0.15f + diffuse * shade;   // 0.15 = a little ambient light
-    return base * brightness;
+       
+    return color;
 }
 
 __global__ void renderKernel(unsigned char* image, Sphere* scene, int scene_size , int W, int H, Vec3 cameraPos, float aspect, int depth) {
