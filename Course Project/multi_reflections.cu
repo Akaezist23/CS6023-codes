@@ -40,7 +40,7 @@ struct Sphere {
 
 // The whole scene is just a list of spheres. (The floor is a giant sphere.)
 std::vector<Sphere> scene = {
-    { Vec3(0, -1000.5f, -1), 1000.0f, Vec3(0.5f, 0.5f, 0.5f), 0.f, true  }, // floor
+    { Vec3(0, -1000.5f, -1), 1000.0f, Vec3(0.5f, 0.5f, 0.5f), 0.2f, true  }, // floor
     { Vec3(0,     0.0f, -1),    0.5f, Vec3(0.9f, 0.2f, 0.2f), 0.5f, false }, // red
     { Vec3(-1.1f, 0.0f, -1),    0.5f, Vec3(0.2f, 0.7f, 0.3f), 0.5f, false }, // green
     { Vec3( 1.1f, 0.0f, -1),    0.5f, Vec3(0.2f, 0.4f, 0.9f), 0.5f, false }, // blue
