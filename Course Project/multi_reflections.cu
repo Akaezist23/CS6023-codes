@@ -39,11 +39,32 @@ struct Sphere {
 };
 
 // The whole scene is just a list of spheres. (The floor is a giant sphere.)
-std::vector<Sphere> scene = {
-    { Vec3(0, -1000.5f, -1), 1000.0f, Vec3(0.5f, 0.5f, 0.5f), 0.2f, true  }, // floor
-    { Vec3(0,     0.0f, -1),    0.5f, Vec3(0.9f, 0.2f, 0.2f), 0.5f, false }, // red
-    { Vec3(-1.1f, 0.0f, -1),    0.5f, Vec3(0.2f, 0.7f, 0.3f), 0.5f, false }, // green
-    { Vec3( 1.1f, 0.0f, -1),    0.5f, Vec3(0.2f, 0.4f, 0.9f), 0.5f, false }, // blue
+// std::vector<Sphere> scene = {
+//     { Vec3(0, -1000.5f, -1), 1000.0f, Vec3(0.5f, 0.5f, 0.5f), 0.2f, true  }, // floor
+//     { Vec3(0,     0.0f, -1),    0.5f, Vec3(0.9f, 0.2f, 0.2f), 0.5f, false }, // red
+//     { Vec3(-1.1f, 0.0f, -1),    0.5f, Vec3(0.2f, 0.7f, 0.3f), 0.5f, false }, // green
+//     { Vec3( 1.1f, 0.0f, -1),    0.5f, Vec3(0.2f, 0.4f, 0.9f), 0.5f, false }, // blue
+
+// };
+
+std::vector<Sphere> scence = {
+    { Vec3( -5.28f, -0.286f,  -6.35f), 0.24f, Vec3(0.69f, 0.13f, 0.77f), 0.7f, false },
+    { Vec3(  1.09f,  0.113f,  -0.06f), 0.17f, Vec3(0.22f, 0.24f, 0.65f), 0.3f, false },  // flying
+    { Vec3(  0.21f, -0.333f,  -6.39f), 0.18f, Vec3(0.58f, 0.71f, 0.19f), 0.5f, false },
+    { Vec3(  1.36f,  0.388f,   0.41f), 0.32f, Vec3(0.35f, 0.38f, 0.70f), 0.0f, false },  // flying
+    { Vec3(  2.24f,  0.864f,  -0.45f), 0.44f, Vec3(0.44f, 0.84f, 0.23f), 0.1f, false },  // flying
+    { Vec3(  1.40f, -0.370f,   0.35f), 0.13f, Vec3(0.23f, 0.67f, 0.38f), 0.9f, false },
+    { Vec3( -3.02f,  0.287f,  -4.15f), 0.28f, Vec3(0.26f, 0.80f, 0.57f), 0.9f, false },  // flying
+    { Vec3( -0.50f,  0.195f,   0.41f), 0.22f, Vec3(0.43f, 0.38f, 0.89f), 0.5f, false },  // flying
+    { Vec3(  4.22f,  0.623f,  -4.02f), 0.40f, Vec3(0.29f, 0.69f, 0.65f), 0.2f, false },  // flying
+    { Vec3( -2.48f, -0.172f,  -2.67f), 0.33f, Vec3(0.29f, 0.43f, 0.84f), 0.1f, false },
+    { Vec3( -2.73f, -0.362f,  -1.11f), 0.14f, Vec3(0.69f, 0.32f, 0.73f), 0.2f, false },
+    { Vec3(  6.48f, -0.365f,  -6.65f), 0.17f, Vec3(0.88f, 0.73f, 0.34f), 0.0f, false },
+    { Vec3( -1.68f, -0.388f,  -5.07f), 0.12f, Vec3(0.65f, 0.46f, 0.14f), 0.7f, false },
+    { Vec3( -0.25f,  0.927f,  -4.98f), 0.17f, Vec3(0.80f, 0.35f, 0.72f), 0.5f, false },  // flying
+    { Vec3( -0.84f, -0.312f,  -6.13f), 0.20f, Vec3(0.90f, 0.17f, 0.76f), 0.5f, false },
+    { Vec3(  0.07f, -0.167f,  -5.28f), 0.34f, Vec3(0.54f, 0.81f, 0.22f), 0.0f, false },
+    { Vec3( -1.39f,  0.855f,   0.58f), 0.19f, Vec3(0.37f, 0.95f, 0.55f), 0.5f, false },  // flying
 
 };
 
