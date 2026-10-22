@@ -104,7 +104,7 @@ __device__ Vec3 rayColor(Vec3 origin, Vec3 dir, Sphere* scene, int scene_size, i
             bool white = ((cx + cz) & 1) == 0;
             base = white ? Vec3(0.9f, 0.9f, 0.9f) : Vec3(0.2f, 0.2f, 0.2f);
         }
-        int k = scene[hit].reflectivity;
+        float k = scene[hit].reflectivity;
         
         Vec3  toLight = normalize(lightPos - p);
         float diffuse = std::fmax(0.0f, dot(n, toLight));
