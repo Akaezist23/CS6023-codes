@@ -1,18 +1,19 @@
 #!/bin/bash
 set -e
 
-# Usage: bash run.sh [depth]   (reflection depth, default 0)
+# Usage: bash run.sh [depth] [threshold]   (reflection depth, default 0; energy threshold, default 0.01)
 DEPTH=${1:-0}
+THRESHOLD=${2:-0.01}
 
 # Build
 # g++ -O2 -o raytracer_cpu starter_raytracer_cpu.cpp
 # nvcc baseline.cu -o baseline -O2 -std=c++11
-nvcc multi_reflections.cu -o multi_reflections -O2 -std=c++11
+nvcc multi_reflections_2.cu -o multi_reflections -O2 -std=c++11
 
 # Run (writes image.ppm)
 # ./raytracer_cpu
 # ./baseline
-./multi_reflections "$DEPTH"
+./multi_reflections "$DEPTH" "$THRESHOLD"
 
 # rm raytracer_cpu
 # rm baseline
