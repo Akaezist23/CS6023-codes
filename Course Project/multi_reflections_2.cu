@@ -181,7 +181,7 @@ int main(int argc, char** argv) {
     cudaMalloc(&d_scene, scene.size() * sizeof(Sphere));
     cudaMemcpy(d_scene, scene.data(), scene.size() * sizeof(Sphere), cudaMemcpyHostToDevice);
     // x = right, y = up, z = toward the viewer (spheres sit near z = -1).
-    Vec3  cameraPos(0, 1, 3);
+    Vec3  cameraPos(0, 1, 6);
     float aspect = (float)W / H;
 
     renderKernel<<<dim3((W + 31) / 32, (H + 31) / 32), dim3(32, 32)>>>(d_image, d_scene, scene.size(), W, H, cameraPos, aspect, depth, threshold);
