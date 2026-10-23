@@ -1,9 +1,15 @@
 #!/bin/bash
 set -e
 
-# Usage: bash run.sh [depth] [threshold]   (reflection depth, default 0; energy threshold, default 0.01)
+# Usage: bash run.sh [depth] [x] [y] [z] [threshold]
+#   depth: reflection depth (default 0)
+#   x y z: camera position (default 0 1 3)
+#   threshold: energy threshold (default 0.01)
 DEPTH=${1:-0}
-THRESHOLD=${2:-0.01}
+CAM_X=${2:-0}
+CAM_Y=${3:-1}
+CAM_Z=${4:-3}
+THRESHOLD=${5:-0.01}
 
 # Build
 # g++ -O2 -o raytracer_cpu starter_raytracer_cpu.cpp
@@ -13,7 +19,7 @@ nvcc multi_reflections_2.cu -o multi_reflections -O2 -std=c++11
 # Run (writes image.ppm)
 # ./raytracer_cpu
 # ./baseline
-./multi_reflections "$DEPTH" "$THRESHOLD"
+./multi_reflections "$DEPTH" "$CAM_X" "$CAM_Y" "$CAM_Z" "$THRESHOLD"
 
 # rm raytracer_cpu
 # rm baseline

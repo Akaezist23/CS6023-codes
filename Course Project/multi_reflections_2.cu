@@ -166,11 +166,15 @@ __global__ void renderKernel(unsigned char* image, Sphere* scene, int scene_size
 }
 
 int main(int argc, char** argv) {
-    // Reflection depth (number of bounces) and energy threshold, from the command line:
-    //   ./multi_reflections <depth> <threshold>
+    // Reflection depth (number of bounces), camera position and energy threshold, from the command line:
+    //   ./multi_reflections <depth> <camX> <camY> <camZ> <threshold>
     int depth = (argc > 1) ? std::atoi(argv[1]) : 0;
     if (depth < 0) { fprintf(stderr, "depth must be >= 0\n"); return 1; }
-    float threshold = (argc > 2) ? (float)std::atof(argv[2]) : 0.01f; // stop once ray energy drops below this
+    // x = right, y = up, z = toward the viewer (spheres sit near z = -1).
+    Vec3  cameraPos((argc > 2) ? (float)std::atof(argv[2]) : 0.0f,
+                    (argc > 3) ? (float)std::atof(argv[3]) : 1.0f,
+                    (argc > 4) ? (float)std::atof(argv[4]) : 3.0f);
+    float threshold = (argc > 5) ? (float)std::atof(argv[5]) : 0.01f; // stop once ray energy drops below this
     if (threshold < 0.0f || threshold > 1.0f) { fprintf(stderr, "threshold must be in [0, 1]\n"); return 1; }
 
     const int W = 800, H = 600;
@@ -180,8 +184,6 @@ int main(int argc, char** argv) {
     cudaMalloc(&d_image, image.size());
     cudaMalloc(&d_scene, scene.size() * sizeof(Sphere));
     cudaMemcpy(d_scene, scene.data(), scene.size() * sizeof(Sphere), cudaMemcpyHostToDevice);
-    // x = right, y = up, z = toward the viewer (spheres sit near z = -1).
-    Vec3  cameraPos(0, 1, 6);
     float aspect = (float)W / H;
 
     renderKernel<<<dim3((W + 31) / 32, (H + 31) / 32), dim3(32, 32)>>>(d_image, d_scene, scene.size(), W, H, cameraPos, aspect, depth, threshold);
@@ -195,7 +197,8 @@ int main(int argc, char** argv) {
     fprintf(f, "P6\n%d %d\n255\n", W, H);
     fwrite(image.data(), 1, image.size(), f);
     fclose(f);
-    printf("Wrote image.ppm (%dx%d, depth %d, threshold %g)\n", W, H, depth, threshold);
+    printf("Wrote image.ppm (%dx%d, depth %d, camera (%g, %g, %g), threshold %g)\n",
+           W, H, depth, cameraPos.x, cameraPos.y, cameraPos.z, threshold);
     return 0;
 }
 
