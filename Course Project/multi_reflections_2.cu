@@ -80,11 +80,12 @@ __device__ float hitSphere(const Sphere& s, Vec3 origin, Vec3 dir) {
 }
 
 // Find the closest sphere the ray hits. Returns its index (or -1) and the distance.
-__device__ int closestHit(Vec3 origin, Vec3 dir, Sphere* scene, int scene_size , float& tHit) {
+__device__ int closestHit(Vec3 origin, Vec3 dir, Sphere* scene, int scene_size , float& tHit, bool shadow = false) {
     int   best = -1;
     float closest = 1e30f;
     for (int i = 0; i < scene_size; i++) {
         float t = hitSphere(scene[i], origin, dir);
+        if (shadow && t > 0) return i; // we don't need the distance for shadows
         if (t > 0 && t < closest) { closest = t; best = i; }
     }
     tHit = closest;
@@ -129,7 +130,7 @@ __device__ Vec3 rayColor(Vec3 origin, Vec3 dir, Sphere* scene, int scene_size, i
         
         // Hard shadow: shoot a ray toward the light; if it hits something, we're shadowed.
         float shadowT;
-        int   blocked = closestHit(p + n * 0.001f, toLight, scene, scene_size, shadowT);
+        int   blocked = closestHit(p + n * 0.001f, toLight, scene, scene_size, shadowT, true);
         float shade = (blocked >= 0) ? 0.3f : 1.0f;
         
         float brightness = 0.15f + diffuse * shade;   // 0.15 = a little ambient light
