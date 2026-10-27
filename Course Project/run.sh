@@ -19,6 +19,7 @@ nvcc multi_reflections_timed.cu -o multi_reflections -O2 -std=c++11
 # Run (each run writes image.ppm; the last one, N = 400, is kept)
 # ./raytracer_cpu
 # ./baseline
+./multi_reflections 10 "$DEPTH" "$THRESHOLD" > /dev/null   # untimed warm-up (GPU wake-up / clock ramp)
 echo "depth $DEPTH, threshold $THRESHOLD, $RUNS runs per N"
 printf "%6s %10s %10s %10s %10s\n" "N" "mean" "std" "min" "max"
 for N in $N_VALUES; do
