@@ -1,25 +1,21 @@
 #!/bin/bash
 set -e
 
-# Usage: bash run.sh [depth] [x] [y] [z] [threshold]
-#   depth: reflection depth (default 0)
-#   x y z: camera position (default 0 1 3)
+# Usage: bash run.sh [N] [depth] [threshold]
+#   N: number of spheres to render, excluding the floor (default: all)
+#   depth: reflection depth (default 10)
 #   threshold: energy threshold (default 0.01)
-DEPTH=${1:-0}
-CAM_X=${2:-0}
-CAM_Y=${3:-1}
-CAM_Z=${4:-3}
-THRESHOLD=${5:-0.01}
+# Defaults live in the program, so the arguments are just forwarded.
 
 # Build
 # g++ -O2 -o raytracer_cpu starter_raytracer_cpu.cpp
 # nvcc baseline.cu -o baseline -O2 -std=c++11
-nvcc multi_reflections_2.cu -o multi_reflections -O2 -std=c++11
+nvcc multi_reflections_timed.cu -o multi_reflections -O2 -std=c++11
 
 # Run (writes image.ppm)
 # ./raytracer_cpu
 # ./baseline
-./multi_reflections "$DEPTH" "$CAM_X" "$CAM_Y" "$CAM_Z" "$THRESHOLD"
+./multi_reflections "$@"
 
 # rm raytracer_cpu
 # rm baseline
