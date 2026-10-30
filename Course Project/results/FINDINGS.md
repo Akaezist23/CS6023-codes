@@ -15,6 +15,10 @@ The ncu **Source** page has not been analysed yet (see *Open items*).
 | Image | 800 × 600, block 32×32 (1024 threads), grid 25×19 = 475 blocks |
 | Profiled config | N = 400 spheres (+ floor), depth 10, threshold 0.01 |
 
+**Report locations** (relative to the project folder): baseline (`multi_reflections_timed.cu`)
+reports are in `profiles/`, shared-memory version reports in `profiles_shared/`. Report file names
+below (`ncu_details.txt`, `ncu_roofline.txt`, …) refer to files inside those folders.
+
 **Scripts**
 - `run.sh [depth] [threshold]` — builds once, one untimed warm-up run, then sweeps
   N ∈ {10, 20, 50, 100, 200, 300, 400}, 5 runs each, prints mean/std/min/max kernel time
@@ -282,7 +286,90 @@ To discuss — each should be measured with `run.sh` and re-profiled with `profi
 - **Algorithmic:** testing fewer spheres per ray (e.g. spatial culling/BVH) — attacks
   the linear-in-N cost directly.
 
-## 7. Open items
+## 7. Optimization 1 — scene copied to shared memory (`multi_reflections_shared.cu`)
+
+*Change:* at kernel start, each block cooperatively copies `scene[0..N]` into dynamic shared
+memory, `__syncthreads()`, then all ray tests read the shared copy (bounds-check moved below the
+barrier). Launch passes `N+1 × 36 B` of dynamic shared memory; opt-in via `cudaFuncSetAttribute`
+above 48 KB; hard limit 64 KB/block on T4 (~1,820 spheres). Output verified pixel-identical to the
+baseline with `compare_images.py` (N=400, depth 10, threshold 0.01).
+
+*Timing* (`run.sh` vs `SRC=multi_reflections_shared.cu bash run.sh`, depth 10, threshold 0.01, 5 runs):
+
+| N | baseline (ms) | shared (ms) | speedup |
+|---|---|---|---|
+| 10 | 0.266 | 0.149 | 1.79× |
+| 20 | 0.317 | 0.207 | 1.53× |
+| 50 | 0.563 | 0.433 | 1.30× |
+| 100 | 0.991 | 0.830 | 1.19× |
+| 200 | 1.937 | 1.701 | 1.14× |
+| 300 | 2.960 | 2.640 | 1.12× |
+| 400 | 4.105 | 3.717 | 1.10× |
+
+- Consistent gain at every N; ~10 % at N=400, matching the expectation that shared memory
+  helps only modestly when the scene is already L1-resident (still 4 load instructions per sphere).
+- Per-sphere slope (N 100→400): 0.0104 → 0.0096 ms/sphere (~7 % lower).
+- Larger relative gain at small N (1.8× at N=10) — not yet explained; hypothesis: the baseline's
+  first-touch global loads are exposed when there is little work to hide them. To check with a profile.
+*Profile at N=400* (`SRC=multi_reflections_shared.cu OUT=profiles_shared bash profile.sh 400 10 0.01`,
+reports in `profiles_shared/`; both at ncu's locked 585 MHz):
+
+| Metric | Baseline | Shared |
+|---|---|---|
+| Duration | 10.75 ms | 10.02 ms (−6.8 %) |
+| Elapsed cycles | 6.29 M | 5.86 M |
+| Memory Throughput (SOL) | 66.1 % | 45.4 % |
+| L1/TEX Throughput | 72.4 % | 52.7 % |
+| Mem Pipes Busy | 66.1 % | 45.4 % |
+| Compute (SM) Throughput | 66.1 % | 61.0 % |
+| FMA pipe | 56.5 % | 60.7 % (now the busiest pipe) |
+| `l1tex__t_bytes` | 2.67 GB | 59 MB |
+| FLOPs (fadd/fmul/ffma) | identical | identical |
+| IPC / warp cycles per issued inst | 2.66 / 9.32 | 2.67 / 9.33 |
+| Active threads per warp | 21.7 | 21.5 |
+| Achieved occupancy | 77.6 % | 77.8 % |
+| L1 hit rate | 99.9 % | 96.6 % (fewer global loads, so first-touch misses are a larger share) |
+| Block limit (shared mem) | 16 | 2 (irrelevant: registers/warps already limit to 1 block/SM) |
+
+- The load-issue bottleneck (66 %) dropped to 45 %; ncu's verdict changed from "compute and
+  memory well-balanced" to "compute more heavily utilized than memory" — the FMA pipe is now the top unit.
+- Same IPC but ~7 % fewer cycles ⇒ ~7 % fewer instructions executed. Likely cause: shared-memory
+  addressing is 32-bit, removing 64-bit global address arithmetic (`IMAD.WIDE`) — to confirm in Source view.
+- Divergence and occupancy/imbalance unchanged (not targeted) — those ~22 % ncu estimates remain.
+- **Source view (shared version, `oc = origin - s.center` is line 51 there):** SASS shows
+  **`LDS.U.128`** — one 128-bit shared load fetching `center.xyz + radius` — instead of the baseline's
+  4 × 32-bit `LDG.E.SYS`. The compiler knows the alignment of the `extern __shared__` array and can
+  use wide loads where `s_scene[i]` is 16-B aligned (every 4th sphere with a 36-B stride); through the
+  global `Sphere*` it only knows 4-B alignment, so it must use scalar loads. This explains the ~7 %
+  fewer instructions. Line 51's instruction mix: 39 instructions (23 FP, 13 load/store, 3 integer),
+  spanning both inlined copies of the loop — exact loads per sphere not yet counted.
+- Stall samples shifted from the load line to the next consumer: `oc = …` 23.7 % → 16.9 %,
+  `b = 2*dot(oc,dir)` 6.8 % → 15.8 %; `hitSphere` total unchanged (~55 %).
+- **Implication for data layout (§6):** a 16-B-aligned `Sphere` (padding to 48 B) or a separate
+  `float4` array for `center+radius` would let *every* sphere test use one 128-bit load — from
+  global memory as well as shared.
+- **Stall split on the `oc = origin - s.center` line** (hover on its stall bar; samples ∝ time):
+
+  | Stall | Baseline (line 50) | Shared (line 51) |
+  |---|---|---|
+  | Long Scoreboard (L1/global load wait) | 10,623 (15.2 %) | 0 |
+  | LG Throttle (global load queue full) | 7,655 (10.9 %) | 0 |
+  | Short Scoreboard (shared-mem load wait) | 0 | 9,403 (19.6 %) |
+  | MIO Throttle (shared-mem instruction queue) | 0 | 971 (2.0 %) |
+  | Wait | 16,453 | 7,474 |
+  | Not Selected | 12,852 | 10,481 |
+  | Math Pipe Throttle | 7,546 | 6,242 |
+  | Branch Resolving | 5,660 | 5,807 |
+  | **Total samples** | **69,962** | **47,948 (−31 %)** |
+
+  Global-memory stalls disappear and are replaced by their shared-memory counterparts; memory-related
+  waiting on this line drops ~43 % (18,278 → 10,374 samples): fewer instructions (128-bit load) and
+  lower latency. Branch stalls unchanged (divergence not targeted).
+
+*Next (proposed for next week):* tiling for scenes larger than shared memory (see discussion:
+L1 ≈ 1,800 spheres, L2 ≈ 116k; requires lock-step bounce loop so all threads reach `__syncthreads()`).
+
+## 8. Open items
 
 - [x] ncu **Source** page: stalls are ~98 % in the sphere loop; 4 scalar `LDG` per sphere (§3.6).
 - [x] Warning triangles and line-50 stall breakdown (§3.6).
