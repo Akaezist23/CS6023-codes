@@ -369,7 +369,45 @@ reports in `profiles_shared/`; both at ncu's locked 585 MHz):
 *Next (proposed for next week):* tiling for scenes larger than shared memory (see discussion:
 L1 ≈ 1,800 spheres, L2 ≈ 116k; requires lock-step bounce loop so all threads reach `__syncthreads()`).
 
-## 8. Open items
+## 8. Larger scenes — L1 capacity (`compare_sizes.sh`, scene extended to 5,000 spheres)
+
+*How:* `bash compare_sizes.sh` (depth 10, threshold 0.01, 3 runs per N); raw output in
+`results/compare_sizes.txt`. "ms/sph" = marginal cost of each extra sphere since the previous row.
+
+| N | baseline (ms) | shared (ms) | speedup | base ms/sph | shared ms/sph |
+|---|---|---|---|---|---|
+| 400 | 4.100 | 3.708 | 1.11× | – | – |
+| 600 | 6.073 | 5.537 | 1.10× | 0.00987 | 0.00914 |
+| 800 | 8.003 | 7.356 | 1.09× | 0.00965 | 0.00909 |
+| 1000 | 9.979 | 9.197 | 1.09× | 0.00988 | 0.00920 |
+| 1200 | 12.026 | 11.119 | 1.08× | 0.01024 | 0.00961 |
+| 1364 | 13.663 | 12.609 | 1.08× | 0.00998 | 0.00909 |
+| 1365 | 13.673 | 12.630 | 1.08× | – | – |
+| 1500 | 15.500 | 13.912 | 1.11× | 0.01353 | 0.00950 |
+| 1700 | 19.333 | 15.832 | 1.22× | 0.01916 | 0.00960 |
+| 1819 | 24.353 | 17.018 | 1.43× | 0.04218 | 0.00997 |
+| 1820 | 24.264 | fail | – | – | – |
+| 2000 | 28.582 | fail | – | 0.02399 | – |
+| 2500 | 36.428 | fail | – | 0.01569 | – |
+| 3000 | 44.852 | fail | – | 0.01685 | – |
+| 4000 | 61.510 | fail | – | 0.01666 | – |
+| 5000 | 78.839 | fail | – | 0.01733 | – |
+
+- **Shared version:** flat ~0.0091–0.0100 ms/sphere up to its limit. Works above 48 KB
+  (opt-in via `cudaFuncSetAttribute` OK at N=1365); fails cleanly at N=1820 (64 KB limit) as designed.
+- **Baseline:** flat ~0.0099 ms/sphere up to N≈1,364, then degrades: 1.4× (→1500), 1.9× (→1700),
+  **4.3× (1700→1819, thrashing)**, then settles at **~1.7×** (N ≥ 2,500) — the L2-resident regime
+  (L2 = 4 MB ≈ 116k spheres, so this level should hold far beyond 5,000).
+- The cliff starts at ~50–54 KB of scene, earlier than the nominal 64 KB L1: a cyclic scan close to
+  cache capacity already evicts lines just before reuse (LRU-like replacement, conflicts).
+- Shared memory's advantage grows near capacity (1.08× → 1.43× at N=1819): explicitly managed
+  storage is never evicted. Strong motivation for **tiling** (next week) to keep the flat
+  ~0.0095 ms/sphere beyond 1,820 spheres.
+- Profiles planned: baseline N=1819 (`OUT=profiles_1819`), shared N=1819 (`OUT=profiles_shared_1819`),
+  baseline N=3000 (`OUT=profiles_3000`). Expected: baseline L1 hit rate falls, L2 traffic and
+  Long Scoreboard stalls rise; shared unchanged vs N=400.
+
+## 9. Open items
 
 - [x] ncu **Source** page: stalls are ~98 % in the sphere loop; 4 scalar `LDG` per sphere (§3.6).
 - [x] Warning triangles and line-50 stall breakdown (§3.6).
