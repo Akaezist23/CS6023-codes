@@ -6,6 +6,8 @@ set -e
 #   and prints kernel-time stats (ms) per N.
 #   depth: reflection depth (default 10)
 #   threshold: energy threshold (default 0.01)
+# Pick the source file with SRC, e.g.  SRC=multi_reflections_shared.cu bash run.sh
+SRC=${SRC:-multi_reflections_timed.cu}
 DEPTH=${1:-10}
 THRESHOLD=${2:-0.01}
 N_VALUES="10 20 50 100 200 300 400"
@@ -14,7 +16,7 @@ RUNS=5
 # Build
 # g++ -O2 -o raytracer_cpu starter_raytracer_cpu.cpp
 # nvcc baseline.cu -o baseline -O2 -std=c++11
-nvcc multi_reflections_timed.cu -o multi_reflections -O2 -std=c++11
+nvcc "$SRC" -o multi_reflections -O2 -std=c++11
 
 # Run (each run writes image.ppm; the last one, N = 400, is kept)
 # ./raytracer_cpu

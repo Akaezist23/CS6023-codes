@@ -2,15 +2,19 @@
 set -e
 
 # Usage: bash profile.sh [N] [depth] [threshold]
-#   Profiles ONE render (defaults: N = all 400, depth 10, threshold 0.01) with nsys and ncu.
+#   Profiles ONE render (defaults: N = all 5000, depth 10, threshold 0.01) with nsys and ncu.
+#   Always pass N for the shared-memory version: shared memory fits at most ~1,820 spheres.
 #   Reports go to profiles/: open the .nsys-rep / .ncu-rep files in the Nsight GUIs,
 #   and the .txt files hold the same text that is printed here.
+# Pick the source file with SRC and the report folder with OUT, e.g.
+#   SRC=multi_reflections_shared.cu OUT=profiles_shared bash profile.sh 400
+SRC=${SRC:-multi_reflections_timed.cu}
 ARGS="$@"
-OUT=profiles
+OUT=${OUT:-profiles}
 mkdir -p "$OUT"
 
 # Build with -lineinfo so ncu can map stalls / memory traffic back to source lines.
-nvcc multi_reflections_timed.cu -o multi_reflections -O2 -std=c++11 -lineinfo
+nvcc "$SRC" -o multi_reflections -O2 -std=c++11 -lineinfo
 
 # ---- 1. nsys: timeline of the whole run (API calls, memcpys, kernel) ----------
 echo "========== nsys =========="
