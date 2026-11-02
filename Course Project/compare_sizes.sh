@@ -2,23 +2,31 @@
 set -e
 
 # Usage: bash compare_sizes.sh [depth] [threshold]
-#   Times the baseline (multi_reflections_timed.cu) and the shared-memory version
-#   (multi_reflections_shared.cu) for larger scenes, RUNS times each, and prints
-#   mean kernel time, speedup, and the marginal cost per extra sphere.
-#   Shared memory holds at most 64 KB per block on the T4 = 1,820 Spheres (36 B each)
-#   = floor + 1,819, so the shared version is expected to fail from N = 1820 on
-#   (shown as "fail"). Above that only the baseline runs, to look for the point where
-#   the scene stops fitting in L1 (~64 KB, i.e. also around N ~ 1,800).
-#   Output is also saved to results/compare_sizes.txt.
+#   Times the baseline (BASE, default multi_reflections_timed.cu) against an optimized
+#   version (OPT, default multi_reflections_shared.cu) for larger scenes, RUNS times each,
+#   and prints mean kernel time, speedup, and the marginal cost per extra sphere.
+#   Before timing, it renders N=400 with both and checks the images are pixel-identical.
+#   Pick the version with OPT, e.g.
+#     OPT=multi_reflections_split.cu bash compare_sizes.sh
+#   Output is saved to results/compare_sizes_<name>.txt (<name> = OPT without the
+#   multi_reflections_ prefix), or to OUT if given. Override the N list with N_VALUES.
+#
+#   Shared: at most 64 KB per block on the T4 = 1,820 Spheres (36 B each) = floor + 1,819,
+#   so it is expected to fail from N = 1820 on (shown as "fail").
+#   Split: center + radius as float4 (16 B), so L1 (~64 KB) holds ~4,096 of them;
+#   the extra N values 3300-3800 are there to locate its cliff.
+BASE=${BASE:-multi_reflections_timed.cu}
+OPT=${OPT:-multi_reflections_shared.cu}
+NAME=$(basename "$OPT" .cu); NAME=${NAME#multi_reflections_}
 DEPTH=${1:-10}
 THRESHOLD=${2:-0.01}
-N_VALUES="400 600 800 1000 1200 1364 1365 1500 1700 1819 1820 2000 2500 3000 4000 5000"
+N_VALUES=${N_VALUES:-"400 600 800 1000 1200 1364 1365 1500 1700 1819 1820 2000 2500 3000 3300 3600 3800 4000 5000"}
 RUNS=3
-OUT=results/compare_sizes.txt
+OUT=${OUT:-results/compare_sizes_$NAME.txt}
 mkdir -p results
 
-nvcc multi_reflections_timed.cu  -o mr_base   -O2 -std=c++11
-nvcc multi_reflections_shared.cu -o mr_shared -O2 -std=c++11
+nvcc "$BASE" -o mr_base -O2 -std=c++11
+nvcc "$OPT"  -o mr_opt  -O2 -std=c++11
 
 # Mean kernel time (ms) over RUNS runs, or "fail" if the program exits with an error.
 mean_time() {
@@ -32,28 +40,40 @@ mean_time() {
     echo $times | awk '{ s = 0; for (i = 1; i <= NF; i++) s += $i; printf "%.3f", s / NF }'
 }
 
+# Correctness: same image at N=400 (each run writes image.ppm)
+./mr_base 400 "$DEPTH" "$THRESHOLD" > /dev/null && mv image.ppm image_base.ppm
+./mr_opt  400 "$DEPTH" "$THRESHOLD" > /dev/null && mv image.ppm image_opt.ppm
+echo -n "Image check (N=400): "
+python3 compare_images.py image_base.ppm image_opt.ppm || echo "WARNING: $NAME image differs from baseline"
+rm image_base.ppm image_opt.ppm
+
+# 128-bit global loads in each binary (the split version should have some in the sphere loop)
+echo "LDG.E.128 instructions: baseline $(cuobjdump -sass mr_base | grep -c 'LDG.E.128' || true)," \
+     "$NAME $(cuobjdump -sass mr_opt | grep -c 'LDG.E.128' || true)"
+
 # Untimed warm-up (GPU wake-up / clock ramp)
 ./mr_base 10 "$DEPTH" "$THRESHOLD" > /dev/null
-./mr_shared 10 "$DEPTH" "$THRESHOLD" > /dev/null
+./mr_opt  10 "$DEPTH" "$THRESHOLD" > /dev/null
 
 {
+echo "baseline = $BASE, $NAME = $OPT"
 echo "depth $DEPTH, threshold $THRESHOLD, $RUNS runs per N, times in ms"
 echo "ms/sph = (time - previous time) / (N - previous N), i.e. cost of each extra sphere (only for steps >= 50)"
-printf "%6s %10s %10s %9s %14s %14s\n" "N" "baseline" "shared" "speedup" "base ms/sph" "shared ms/sph"
-PREV_N=""; PREV_B=""; PREV_S=""
+printf "%6s %10s %10s %9s %14s %14s\n" "N" "baseline" "$NAME" "speedup" "base ms/sph" "$NAME ms/sph"
+PREV_N=""; PREV_B=""; PREV_O=""
 for N in $N_VALUES; do
     B=$(mean_time mr_base "$N")
-    S=$(mean_time mr_shared "$N")
-    awk -v n="$N" -v b="$B" -v s="$S" -v pn="$PREV_N" -v pb="$PREV_B" -v ps="$PREV_S" 'BEGIN {
-        sp  = (b != "fail" && s != "fail") ? sprintf("%.2fx", b / s) : "-"
+    O=$(mean_time mr_opt "$N")
+    awk -v n="$N" -v b="$B" -v o="$O" -v pn="$PREV_N" -v pb="$PREV_B" -v po="$PREV_O" 'BEGIN {
+        sp  = (b != "fail" && o != "fail") ? sprintf("%.2fx", b / o) : "-"
         wide = (pn != "" && n - pn >= 50)   # 1-sphere steps (1364->1365, 1819->1820) would just amplify noise
         bms = (wide && b != "fail" && pb != "fail") ? sprintf("%.5f", (b - pb) / (n - pn)) : "-"
-        sms = (wide && s != "fail" && ps != "fail") ? sprintf("%.5f", (s - ps) / (n - pn)) : "-"
-        printf "%6d %10s %10s %9s %14s %14s\n", n, b, s, sp, bms, sms
+        oms = (wide && o != "fail" && po != "fail") ? sprintf("%.5f", (o - po) / (n - pn)) : "-"
+        printf "%6d %10s %10s %9s %14s %14s\n", n, b, o, sp, bms, oms
     }'
-    PREV_N=$N; PREV_B=$B; PREV_S=$S
+    PREV_N=$N; PREV_B=$B; PREV_O=$O
 done
 } | tee "$OUT"
 
-rm mr_base mr_shared
+rm mr_base mr_opt
 echo "Saved to $OUT"

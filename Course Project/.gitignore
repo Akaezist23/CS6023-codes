@@ -1,0 +1,5 @@
+# Profiles from the first optimization rounds: kept locally, no longer tracked
+profiles/
+profiles_shared/
+profiles_5000/
+profiles_5000.zip

@@ -373,7 +373,7 @@ L1 ≈ 1,800 spheres, L2 ≈ 116k; requires lock-step bounce loop so all threads
 ## 8. Larger scenes — L1 capacity (`compare_sizes.sh`, scene extended to 5,000 spheres)
 
 *How:* `bash compare_sizes.sh` (depth 10, threshold 0.01, 3 runs per N); raw output in
-`results/compare_sizes.txt`. "ms/sph" = marginal cost of each extra sphere since the previous row.
+`results/compare_sizes_shared.txt`. "ms/sph" = marginal cost of each extra sphere since the previous row.
 
 | N | baseline (ms) | shared (ms) | speedup | base ms/sph | shared ms/sph |
 |---|---|---|---|---|---|
@@ -394,7 +394,7 @@ L1 ≈ 1,800 spheres, L2 ≈ 116k; requires lock-step bounce loop so all threads
 | 4000 | 61.510 | fail | – | 0.01666 | – |
 | 5000 | 78.839 | fail | – | 0.01733 | – |
 
-- **Repeat run** (`results/compare_sizes.txt`, the latest run): every number agrees with the table
+- **Repeat run** (`results/compare_sizes_shared.txt`, the latest run): every number agrees with the table
   above to within ~2 % (5000: 80.541 vs 78.839 ms), except baseline N=400 (4.402 vs 4.100 ms,
   so a speedup of 1.18× vs 1.11×). That point comes first in the sweep, so it is probably GPU warm-up
   noise. Treat the N=400 speedup as ~1.1–1.2×. The cliff (1.44× at N=1819) and the ~1.7× L2
@@ -413,13 +413,76 @@ L1 ≈ 1,800 spheres, L2 ≈ 116k; requires lock-step bounce loop so all threads
   baseline N=3000 (`OUT=profiles_3000`). Expected: baseline L1 hit rate falls, L2 traffic and
   Long Scoreboard stalls rise; shared unchanged vs N=400.
 
-## 9. Open items
+## 9. Profile at N=5000 — baseline in the L2-resident regime
+
+*How:* `OUT=profiles_5000 bash profile.sh 5000` (depth 10, threshold 0.01), reports in `profiles_5000/`.
+Shared version not profiled: it cannot hold 5,000 spheres. Stall breakdown from
+`ncu --import <rep> --page raw | grep "warps_issue_stalled_.*_per_issue_active"`.
+Both columns at ncu's locked 585 MHz.
+
+| Metric | N=400 | N=5000 |
+|---|---|---|
+| Duration | 10.75 ms | 184.34 ms (17.1× for 12.5× spheres → 1.37× per sphere) |
+| Compute (SM) / L1 SoL | 66.1 % / 72.4 % | 51.5 % / 55.5 % |
+| L1 hit rate | 99.92 % | 98.56 % |
+| L1 bytes (`l1tex__t_bytes`) | 2.67 GB | 35.83 GB |
+| L2 bytes (`lts__t_bytes`) | 3.51 MB | 518.6 MB (148×) |
+| L2 SoL / DRAM bytes | 0.04 % / 2.2 MB | 0.32 % / 2.9 MB |
+| No eligible warp | 29.7 % | 45.5 % |
+| Eligible warps / scheduler | 2.41 | 1.71 |
+| Cycles per issued instruction | 9.32 | 11.43 |
+| Achieved occupancy | 77.6 % | 72.1 % |
+| Active threads / warp | 21.7 | 20.4 |
+| FMA pipe utilisation | 56.5 % | 43.6 % |
+
+*Stall breakdown* (cycles per issued instruction; sums to the 9.32 / 11.43 above):
+
+| Reason | N=400 | N=5000 | Δ |
+|---|---|---|---|
+| wait | 2.48 | 2.48 | 0 |
+| not_selected | 2.43 | 2.13 | −0.30 |
+| **long_scoreboard** | 0.34 | **2.14** | **+1.80** |
+| math_pipe_throttle | 1.55 | 1.43 | −0.12 |
+| **lg_throttle** | 0.54 | **1.43** | **+0.89** |
+| selected | 1 | 1 | 0 |
+| branch_resolving | 0.51 | 0.50 | 0 |
+| no_instruction | 0.33 | 0.23 | −0.10 |
+| dispatch_stall | 0.12 | 0.08 | −0.04 |
+
+- **Latency-bound, not bandwidth-bound.** Every unit is *less* busy than at N=400; L2 bandwidth is
+  essentially idle (0.32 %) and DRAM is untouched. The slowdown is waiting, not throughput.
+- **The whole slowdown is memory stalls.** long_scoreboard (+1.80, warps waiting on L1 misses served
+  by L2) and lg_throttle (+0.89, LSU queue for global loads full) add +2.69 cycles/instruction; the
+  rest shrank slightly. Net +2.11 = 11.43 − 9.32.
+- **Why the L1 hit rate still looks high.** Reuse *within one scan* survives: all 32 threads of a
+  warp read the same sphere (one request), and the warps of an SM walk the list at roughly the same
+  pace, so the first warp misses and the following ones hit. What capacity evictions kill is reuse
+  *between scans* (next bounce / shadow ray restarting at sphere 0). One miss per line per scan vs
+  dozens of hits, hence 1.44 % misses, yet 18× the miss rate and 148× the L2 traffic of N=400.
+- **lg_throttle points at load count, not bytes.** 4 scalar `LDG` per sphere (§3.6) fill the LSU
+  queue faster while misses are outstanding. One 128-bit load would issue 4× fewer instructions.
+- **Occupancy is limited by block granularity, not by too many warps.** 44 regs × 1,024 threads
+  ⇒ exactly 1 block/SM (Block Limit Registers = 1). Warps whose rays finish early leave their slots
+  idle until the whole block retires ⇒ 72 % achieved vs 100 % theoretical (ncu est. ≤ 28 %).
+- **Compute is not the limit.** FMA pipe 43.6 %; math_pipe_throttle unchanged (~1.4–1.5).
+- nsys kernel time with the warm-up: 103.0 ms vs 80.5 ms in `compare_sizes.sh`. The warm-up closed most
+  of the gap seen at N=400 (9.74 vs 4.1 ms) but not all of it. Quote `compare_sizes.sh` times.
+
+*Implications for the planned optimizations:*
+
+| Idea | Verdict at N=5000 |
+|---|---|
+| Fewer warps per SM | Opposite: need *more* eligible warps. Try smaller blocks (e.g. 16×16) so several blocks share an SM and finished ones are replaced promptly. |
+| FMA / arithmetic tweaks | Lowest priority: FMA pipe < 50 %, math throttle unchanged. |
+| Read less / selectively | Strongest lever. Intersection needs only center + radius (16 B of 36 B): a separate float4 array fits ~2.25× more spheres in L1 (cliff ~1,800 → ~4,000) and turns 4 `LDG` into 1 (cuts lg_throttle). Tiling attacks the same misses. |
+| Divergence (new) | 20.4 / 32 active threads (ncu est. ≈ 20 %); harder to fix. |
+
+## 10. Open items
 
 - [x] ncu **Source** page: stalls are ~98 % in the sphere loop; 4 scalar `LDG` per sphere (§3.6).
 - [x] Warning triangles and line-50 stall breakdown (§3.6).
 - [ ] Hierarchical roofline: hover the dots to confirm which colour is L2 vs DRAM, and the
       L1 byte count ncu uses (it implies ~4× more than `l1tex__t_bytes` = 2.67 GB).
-- [ ] Re-run nsys with a warm-up (`nsys_profile.sh`, written but not yet run successfully) if nsys
-      kernel timings are needed for the report; current nsys reports have no warm-up
-      (kernel 9.74 ms baseline / 5.92 ms shared vs ~4.1 / ~3.7 ms in `run.sh`).
-- [ ] Profile the larger scenes: baseline N=1819 and N=3000, shared N=1819 (see §8).
+- [x] Profile baseline at N=5000 (§9).
+- [x] Re-run nsys with a warm-up: added to `profile.sh`; still ~1.28× `compare_sizes.sh` at N=5000 (§9).
+- [ ] Optional: profile baseline N=1819 (the thrashing peak) and shared N=1819 (see §8).
