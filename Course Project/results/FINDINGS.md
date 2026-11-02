@@ -477,12 +477,127 @@ Both columns at ncu's locked 585 MHz.
 | Read less / selectively | Strongest lever. Intersection needs only center + radius (16 B of 36 B): a separate float4 array fits ~2.25× more spheres in L1 (cliff ~1,800 → ~4,000) and turns 4 `LDG` into 1 (cuts lg_throttle). Tiling attacks the same misses. |
 | Divergence (new) | 20.4 / 32 active threads (ncu est. ≈ 20 %); harder to fix. |
 
-## 10. Open items
+## 10. Optimization 2 — hot/cold split, center + radius as `float4` (`multi_reflections_split.cu`)
+
+*Change:* the sphere loop (`closestHit` / `hitSphere`) reads a separate `float4` array
+`(cx, cy, cz, r)`, 16 B and 16-B aligned, built on the host with `make_float4`. The full
+`Sphere` array (36 B) is still used only for the hit sphere (normal, color, floor, reflectivity).
+Motivated by §9: lg_throttle (4 scalar `LDG` per sphere) and L1 misses.
+
+*Profile at N=5000* (`SRC=multi_reflections_split.cu OUT=profiles_split_5000 bash profile.sh 5000`,
+locked 585 MHz):
+
+| Metric | Baseline | Split | Change |
+|---|---|---|---|
+| Duration | 184.3 ms | 154.7 ms | **1.19× faster** |
+| FP32 fadd / fmul / ffma | 22.96 / 17.23 / 34.46 G | identical | same work |
+| L1 bytes | 35.83 GB | 8.97 GB | 4.0× less |
+| L2 bytes | 518.6 MB | 211.5 MB | 2.45× less (36 → 16 B predicts 2.25×) |
+| Mem Pipes Busy | 51.5 % | 15.5 % | |
+| L1 hit rate | 98.56 % | 97.67 % | lower: see below |
+| SoL SM / memory | 51.5 / 51.5 % | 52.3 / 24.0 % | |
+| SM active cycles | 100.9 M | 84.4 M | −16 % |
+| Instructions (IPC × active cycles) | ~204 M / SM | ~182 M / SM | ~−10 % |
+| Cycles per issued instruction | 11.43 | 11.04 | |
+| Eligible warps / scheduler | 1.71 | 1.88 | |
+| Achieved occupancy | 72.1 % | 74.6 % | |
+
+*Stall breakdown* (cycles per issued instruction; "abs." = ratio × instructions, ∝ total stall cycles):
+
+| Reason | Baseline | Split | abs. change |
+|---|---|---|---|
+| **lg_throttle** | 1.43 | **0.01** | **≈ −100 %** |
+| long_scoreboard | 2.14 | 2.67 | +12 % |
+| math_pipe_throttle | 1.43 | 1.77 | +11 % |
+| not_selected | 2.13 | 2.24 | −6 % |
+| wait | 2.48 | 2.41 | −13 % |
+| branch_resolving | 0.50 | 0.57 | +2 % |
+| no_instruction | 0.23 | 0.29 | |
+| **total** | 11.43 | 11.04 | **−14 %** (matches −16 % cycles) |
+
+- **lg_throttle eliminated** as predicted: one `LDG.E.128` per sphere instead of four scalar loads.
+- **Lower L1 hit rate is a denominator artifact.** In the baseline, loads 2–4 of a sphere hit the
+  sector that load 1 just brought in ("free" hits). The split removes those requests, so the rate
+  falls while real misses (L2 bytes) drop 2.45×.
+- **Removing a throttle exposes the latency under it.** The waiting moved from "cannot issue the
+  load" (lg_throttle) to "waiting for its data" (long_scoreboard, +12 % absolute). The scene is
+  still past L1 at N=5000: 5,001 × 16 B = 80 KB > 64 KB, so the split is past its own cliff
+  (predicted ~3,200–3,400). long_scoreboard should drop below that N.
+- **math_pipe_throttle rose** (+11 %): with loads no longer gating issue, the FMA pipe is closer to
+  its limit. FMA / arithmetic tweaks (idea 2) become somewhat more relevant than in §9.
+- nsys single run: 111.8 ms split vs 103.0 ms baseline, *opposite* to ncu. The nsys/ncu ratio differs
+  (0.72 vs 0.56), so these were probably different clocks (Colab T4 throttling, separate sessions).
+  Not used. `compare_sizes.sh` (3 runs, back-to-back) is the reference.
+- *ncu-ui SoL (split vs baseline):* SM +1.5 %, memory −53 %, L2 −51.5 %, **L1/TEX only −13 %**
+  despite 4× fewer `l1tex__t_bytes` (bytes vs requests again, §4.3). Duration −16.1 %.
+- *Roofline Single Precision (hierarchical), N=5000.* Dot colours: L1 purple, L2 orange,
+  DRAM teal; outline green = baseline, blue = current. Ridges ≈ 1 (L1), ≈ 3.5 (L2), ≈ 9.4 (DRAM).
+
+  | Level | Baseline AI | Split AI | AI from counters (base / split) |
+  |---|---|---|---|
+  | L1 (Global/Local) | 0.76 | 0.98 | 3.0 / 12.2 |
+  | L2 | 211.38 | 523.05 | 210 / 516 (match within ~1 %) |
+  | DRAM | 37,426 | 37,743 | |
+
+  Exact values from the ncu-ui chart export. Performance 591.8 → 705.2 GFLOP/s; FP32 roof 2,999 GFLOP/s.
+  Implied L1 bytes (109.1 GFLOP / AI): 143.6 GB baseline, 111.3 GB split.
+  - **Every dot is ~4× below its roof** (L1 dots ~25 % of the L1 slope, all ~24 % of the FP32
+    roof). No resource is saturated ⇒ **latency-bound**, consistent with the stalls.
+  - **ncu's L1 bytes ≠ `l1tex__t_bytes`.** Factor 4.0× for the baseline but 12.4× for the split,
+    so the L1 dot moved only 1.29× right instead of 4×. Hypothesis: the roofline counts bytes *requested
+    by threads* (32 lanes × load width = 512 B per sphere per warp in *both* versions), while
+    `l1tex__t_bytes` counts sectors (broadcast load ⇒ 4 × 32 B = 128 B baseline, 1 × 32 B split).
+    That predicts 4× and 16×; observed 4.0× and 12.4×. Not yet verified (Raw page: `data_bytes` metrics).
+- *Compute Workload, pipe utilization* (ncu-ui, % of peak over active cycles, ≈ read off the chart):
+
+  | Pipe | Baseline | Split |
+  |---|---|---|
+  | FMA | ~47 % | ~56 % |
+  | LSU | **~55 %** (top pipe) | ~16.5 % |
+  | ALU | ~23 % | ~27.5 % |
+  | CBU (branch) | ~5 % | ~6 % |
+  | XU (sqrt, rcp) | ~0 | ~0 |
+
+  - LSU down ~3.4×: 4 load instructions per sphere → 1. In the baseline LSU was the busiest pipe.
+  - FMA and ALU rose only because the same instructions now fit in 16 % fewer cycles
+    (47 / 0.84 ≈ 56). FMA is now the top pipe.
+  - **XU ≈ 0:** `sqrt` and the divide in `hitSphere` run only when `disc ≥ 0` (rare), so they
+    are not a target for arithmetic tweaks. Those should target the FMA-pipe work done for *every* sphere.
+  - **Headroom:** FMA at 56 % ⇒ hiding all latency could give at most ~1.8× before the FMA pipe
+    saturates. Beyond that, only fewer FP32 instructions per sphere help.
+- *Scheduler:* 6.39 active vs 1.88 eligible warps per scheduler, 42 % of cycles with none eligible.
+  ncu "Est. Speedup 42 %" = the No-Eligible % itself, i.e. an upper bound, not a prediction.
+- *Warp State, levers per stall:* long_scoreboard (2.67, load latency) and wait (2.41, serial
+  `oc → dot → disc` dependency chain) are 5.1 of 11.0 cycles. Both shrink with **more warps**
+  (occupancy) or **more independent work per warp** (ILP: e.g. 2 spheres per loop iteration, so
+  two loads and two independent chains overlap). math_pipe_throttle (1.77) needs fewer FP32
+  instructions; not_selected (2.24) is harmless. Divergence: 20.36 / 32 active threads, unchanged
+  from the baseline (mainly different bounce counts within a 32-pixel row, plus shadow early exit).
+- *Occupancy:* theoretical 100 % already (32 warps/SM = one 1,024-thread block); achieved 74.6 %.
+  The gap is block granularity / imbalance: a block's warps finish at different times, but the SM
+  cannot start a new block until the whole block retires. ncu est. 25 % (upper bound).
+  - Register graph: 100 % up to **64 regs/thread** (we use 44). Headroom for unrolling/ILP at no
+    occupancy cost. Above 64, a 1,024-thread block cannot launch at all.
+  - Block-size graph: 100 % theoretical at 64, 128, 256, 512, 1,024; dips in between (e.g. ~53 % just above 512).
+  - Candidate: 256 threads (4 blocks/SM) or 128 (8 blocks/SM). Compare **32×8** (same warp shape
+    as now, 32×1 pixel row: isolates the block-granularity effect) with **16×16** (warp = 16×2
+    pixels, more compact, which may also change divergence).
+- *Timing sweep:* `OPT=multi_reflections_split.cu bash compare_sizes.sh` →
+  `results/compare_sizes_split.txt` — **pending**.
+
+*Next levers:* smaller blocks (still 1 block/SM, 74.6 % achieved occupancy); for N > ~4,000,
+split + shared memory / tiling (64 KB of shared memory holds 4,096 `float4` vs 1,820 `Sphere`);
+divergence (20.4 / 32 active threads).
+
+## 11. Open items
 
 - [x] ncu **Source** page: stalls are ~98 % in the sphere loop; 4 scalar `LDG` per sphere (§3.6).
 - [x] Warning triangles and line-50 stall breakdown (§3.6).
-- [ ] Hierarchical roofline: hover the dots to confirm which colour is L2 vs DRAM, and the
-      L1 byte count ncu uses (it implies ~4× more than `l1tex__t_bytes` = 2.67 GB).
+- [x] Hierarchical roofline dot colours: L1 purple, L2 orange, DRAM teal (§10).
+- [ ] L1 byte count the roofline uses: 4.0× `l1tex__t_bytes` for the baseline, 12.4× for the split.
+      Check the thread-bytes hypothesis on the Raw page (§10).
 - [x] Profile baseline at N=5000 (§9).
 - [x] Re-run nsys with a warm-up: added to `profile.sh`; still ~1.28× `compare_sizes.sh` at N=5000 (§9).
 - [ ] Optional: profile baseline N=1819 (the thrashing peak) and shared N=1819 (see §8).
+- [x] Profile split at N=5000 (§10).
+- [ ] Timing sweep split vs baseline (`OPT=multi_reflections_split.cu bash compare_sizes.sh`, §10).
