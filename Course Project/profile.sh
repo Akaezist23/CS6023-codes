@@ -16,6 +16,10 @@ mkdir -p "$OUT"
 # Build with -lineinfo so ncu can map stalls / memory traffic back to source lines.
 nvcc "$SRC" -o multi_reflections -O2 -std=c++11 -lineinfo
 
+# Untimed warm-up (GPU wake-up / clock ramp), so the nsys kernel time is not inflated.
+# ncu locks the clocks itself, so it does not need this.
+./multi_reflections 10 > /dev/null
+
 # ---- 1. nsys: timeline of the whole run (API calls, memcpys, kernel) ----------
 echo "========== nsys =========="
 nsys profile --trace=cuda --stats=true --force-overwrite=true \

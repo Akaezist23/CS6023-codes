@@ -3,7 +3,8 @@ set -e
 
 # Usage: bash nsys_profile.sh [N] [depth] [threshold]
 #   Runs ONLY Nsight Systems on one render (no ncu), after an untimed warm-up run,
-#   so the kernel time is not inflated by the GPU waking up (profile.sh has no warm-up).
+#   so the kernel time is not inflated by the GPU waking up. profile.sh now does the same
+#   warm-up, so this is only for re-running nsys without the slow ncu passes.
 #   Pick the source file with SRC and the report folder with OUT, e.g.
 #     SRC=multi_reflections_shared.cu OUT=profiles_shared_1819 bash nsys_profile.sh 1819
 #   Writes $OUT/nsys_report.nsys-rep and $OUT/nsys_stats.txt.
