@@ -294,7 +294,8 @@ barrier). Launch passes `N+1 × 36 B` of dynamic shared memory; opt-in via `cuda
 above 48 KB; hard limit 64 KB/block on T4 (~1,820 spheres). Output verified pixel-identical to the
 baseline with `compare_images.py` (N=400, depth 10, threshold 0.01).
 
-*Timing* (`run.sh` vs `SRC=multi_reflections_shared.cu bash run.sh`, depth 10, threshold 0.01, 5 runs):
+*Timing* (`run.sh` vs `SRC=multi_reflections_shared.cu bash run.sh`, depth 10, threshold 0.01, 5 runs;
+raw output with std/min/max in `results/run_baseline.txt` and `results/run_shared.txt`):
 
 | N | baseline (ms) | shared (ms) | speedup |
 |---|---|---|---|
@@ -393,6 +394,11 @@ L1 ≈ 1,800 spheres, L2 ≈ 116k; requires lock-step bounce loop so all threads
 | 4000 | 61.510 | fail | – | 0.01666 | – |
 | 5000 | 78.839 | fail | – | 0.01733 | – |
 
+- **Repeat run** (`results/compare_sizes.txt`, the latest run): every number agrees with the table
+  above to within ~2 % (5000: 80.541 vs 78.839 ms), except baseline N=400 (4.402 vs 4.100 ms,
+  so a speedup of 1.18× vs 1.11×). That point comes first in the sweep, so it is probably GPU warm-up
+  noise. Treat the N=400 speedup as ~1.1–1.2×. The cliff (1.44× at N=1819) and the ~1.7× L2
+  plateau reproduce.
 - **Shared version:** flat ~0.0091–0.0100 ms/sphere up to its limit. Works above 48 KB
   (opt-in via `cudaFuncSetAttribute` OK at N=1365); fails cleanly at N=1820 (64 KB limit) as designed.
 - **Baseline:** flat ~0.0099 ms/sphere up to N≈1,364, then degrades: 1.4× (→1500), 1.9× (→1700),
@@ -413,4 +419,7 @@ L1 ≈ 1,800 spheres, L2 ≈ 116k; requires lock-step bounce loop so all threads
 - [x] Warning triangles and line-50 stall breakdown (§3.6).
 - [ ] Hierarchical roofline: hover the dots to confirm which colour is L2 vs DRAM, and the
       L1 byte count ncu uses (it implies ~4× more than `l1tex__t_bytes` = 2.67 GB).
-- [ ] Re-profile with the warm-up in place if nsys timings are needed for the report.
+- [ ] Re-run nsys with a warm-up (`nsys_profile.sh`, written but not yet run successfully) if nsys
+      kernel timings are needed for the report; current nsys reports have no warm-up
+      (kernel 9.74 ms baseline / 5.92 ms shared vs ~4.1 / ~3.7 ms in `run.sh`).
+- [ ] Profile the larger scenes: baseline N=1819 and N=3000, shared N=1819 (see §8).
