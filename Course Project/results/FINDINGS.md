@@ -582,12 +582,118 @@ locked 585 MHz):
   - Candidate: 256 threads (4 blocks/SM) or 128 (8 blocks/SM). Compare **32×8** (same warp shape
     as now, 32×1 pixel row: isolates the block-granularity effect) with **16×16** (warp = 16×2
     pixels, more compact, which may also change divergence).
-- *Timing sweep:* `OPT=multi_reflections_split.cu bash compare_sizes.sh` →
-  `results/compare_sizes_split.txt` — **pending**.
+- *Block-shape sweep* (`bash compare_blocks.sh`, split version, depth 10, threshold 0.01, 3 runs;
+  block size = arguments 4–5 of `multi_reflections_split.cu`). Speedup vs 32×32 at the same N:
 
-*Next levers:* smaller blocks (still 1 block/SM, 74.6 % achieved occupancy); for N > ~4,000,
-split + shared memory / tiling (64 KB of shared memory holds 4,096 `float4` vs 1,820 `Sphere`);
-divergence (20.4 / 32 active threads).
+  | Block (threads, warp footprint) | N=400 | N=3000 | N=5000 |
+  |---|---|---|---|
+  | 32×32 (1024, 32×1) | 3.984 ms | 30.133 ms | 64.366 ms |
+  | 32×16 (512, 32×1) | 1.08× | 1.08× | 1.12× |
+  | 32×8 (256, 32×1) | 1.14× | 1.05× | 1.23× |
+  | 32×4 (128, 32×1) | 1.18× | 1.12× | 1.26× |
+  | 16×16 (256, 16×2) | 1.22× | 1.20× | 1.29× |
+  | 16×8 (128, 16×2) | 1.27× | 1.23× | 1.38× |
+  | **8×8 (64, 8×4)** | **1.30×** | **1.27×** | **1.39×** (46.2 ms) |
+
+  All shapes render pixel-identical images to 32×32 (`compare_images.py`, N=400).
+  Two separate effects, both monotonic:
+  - **Block granularity** (same warp shape, smaller block): 32×32 → 32×4 gives 1.18–1.26×. Smaller
+    blocks retire independently, so finished ones are replaced at once (achieved occupancy ↑).
+    8×8 still allows 100 % theoretical: 16 blocks/SM × 2 warps = 32 warps.
+  - **Warp footprint** (same block size, more compact warp): 32×8 → 16×16 and 32×4 → 16×8 add
+    another ~5–10 %. A 16×2 or 8×4 pixel patch is more coherent than a 32×1 row: neighbouring rays
+    hit the same objects and bounce the same number of times ⇒ less divergence.
+  - Pixel locality does not affect scene caching (every ray scans all spheres), but block size does
+    (see the 8×8 profile below: warps of small blocks scan out of step).
+  - Noise: ±a few % (e.g. 32×8 at N=3000 below 32×16). 3 runs, Colab clocks.
+  - Not to go smaller: a 32-thread block allows only 16 warps/SM (16-block limit) = 50 % theoretical.
+- *Profile 8×8 vs 32×32* (split, N=5000, `profiles_split_8x8` vs `profiles_split_5000`, 585 MHz):
+
+  | Metric | 32×32 | 8×8 |
+  |---|---|---|
+  | Duration | 154.7 ms | 112.6 ms (1.37×) |
+  | Active threads / warp | 20.36 | **22.86** |
+  | Instructions (IPC × active cycles) | ~182 M / SM | ~163 M / SM (−11 %) |
+  | IPC (active) | 2.16 | **2.64** |
+  | No eligible | 42.1 % | 31.6 % |
+  | Issued warp / scheduler | 0.58 | 0.68 |
+  | Eligible warps / scheduler | 1.88 | 1.81 |
+  | Achieved occupancy | 74.6 % | 79.9 % (only +5 pts) |
+  | Cycles per issued instruction | 11.04 | 9.73 |
+  | SoL SM / memory | 52.3 / 24.0 % | 64.1 / 33.1 % |
+  | FMA pipe | ~56 % | 64.1 % |
+  | L1 hit rate | 97.67 % | 93.02 % |
+  | L2 bytes | 211.5 MB | **560.7 MB (2.65×)** |
+
+  - **1.37× = 1.12× fewer instructions × 1.22× higher IPC.** Less divergence (20.4 → 22.9
+    active threads) packs the same thread work into ~11 % fewer warp instructions. Better issue
+    (no-eligible 42 → 32 %) gives the rest.
+  - **Occupancy rose only 5 points.** Block granularity is a smaller part of the gain than expected.
+    It is not the main mechanism.
+  - **L2 traffic went *up* 2.65×.** One 1,024-thread block launches 32 warps together that scan the
+    sphere list in step, so one miss serves many warps. Small blocks start and finish at different
+    times, so their warps are at different points in the scan and share less of L1.
+    Faster anyway: L2 is still nearly idle (0.59 %), and the latency is hidden better.
+  - *Stalls 32×32 → 8×8* (cycles per issued instruction; abs. = × instructions, −11 %):
+
+    | Reason | 32×32 | 8×8 | abs. change |
+    |---|---|---|---|
+    | long_scoreboard | 2.67 | 2.41 | −19 % |
+    | wait | 2.41 | 2.40 | −11 % (only fewer instructions) |
+    | not_selected | 2.24 | 1.64 | −35 % |
+    | **math_pipe_throttle** | 1.77 | **1.12** | **−43 %** |
+    | no_instruction | 0.29 | 0.50 | +54 % (small) |
+    | branch_resolving | 0.57 | 0.56 | −12 % |
+    | total | 11.04 | 9.70 | −21 % |
+
+    - **Lockstep vs staggered warps.** The 32 warps of one big block run in step: they all want
+      the FMA pipe at the same time (math_pipe_throttle, not_selected) and all wait for memory at
+      the same time (no eligible warp). Staggered small blocks mix phases, so pipe use is smoother:
+      math throttle −43 %, not_selected −35 %. The cost: less L1 sharing (L2 bytes 2.65×). Here
+      the smoother issue wins.
+    - long_scoreboard −19 % despite 2.65× L2 traffic: the latency is hidden better.
+    - **wait is unchanged per instruction:** the serial `oc → dot → disc` chain does not care about
+      block shape. It is now the largest stall together with long_scoreboard: an ILP target.
+    - no_instruction +54 %: more warps at different points in the code ⇒ more instruction-fetch
+      misses. Minor (0.5 cycles).
+  - FMA is now the top pipe at 64 %; ncu: "Compute is more heavily utilized than Memory".
+    Remaining ncu estimates: ~20 % divergence, ~20 % occupancy (upper bounds).
+  - nsys single run: 80.2 ms (vs 46.2 ms in `compare_blocks.sh`). Not used, as before.
+- *Timing sweep split vs baseline* (32×32 blocks, `results/compare_sizes_split.txt`; image check
+  IDENTICAL; `LDG.E.128` count: baseline 0, split 8):
+
+  | N | baseline | split | speedup | base ms/sph | split ms/sph |
+  |---|---|---|---|---|---|
+  | 400 | 4.363 | 4.013 | 1.09× | – | – |
+  | 1000 | 10.072 | 9.725 | 1.04× | 0.01009 | 0.00956 |
+  | 1364 | 13.821 | 13.239 | 1.04× | 0.01079 | 0.00935 |
+  | 1500 | 15.605 | 14.644 | 1.07× | 0.01382 | 0.00998 |
+  | 1700 | 19.592 | 16.613 | 1.18× | 0.01993 | 0.00984 |
+  | 1819 | 24.657 | 17.797 | 1.39× | 0.04256 | 0.00995 |
+  | 2000 | 29.076 | 19.622 | 1.48× | 0.02519 | 0.01002 |
+  | 2500 | 37.320 | 24.980 | 1.49× | 0.01649 | 0.01072 |
+  | 3000 | 45.991 | 30.726 | **1.50×** | 0.01734 | 0.01149 |
+  | 3300 | 51.298 | 34.464 | 1.49× | 0.01769 | 0.01246 |
+  | 3600 | 57.085 | 38.768 | 1.47× | 0.01929 | 0.01435 |
+  | 3800 | 61.219 | 42.230 | 1.45× | 0.02067 | 0.01731 |
+  | 4000 | 64.538 | 49.558 | 1.30× | 0.01659 | **0.03664** |
+  | 5000 | 84.007 | 66.347 | 1.27× | 0.01947 | 0.01679 |
+
+  (Rows 600, 800, 1200, 1365, 1820 in the raw file.)
+  - **While both versions fit in L1 (N ≤ 1,364) the split gains only 3–9 %.** Loads were not the
+    bottleneck there.
+  - **Split's L1 cliff: 3,800 → 4,000** (0.0366 ms/sph), exactly at 64 KB / 16 B = 4,096 spheres. It
+    moved from ~1,820 by the predicted 2.25×.
+  - Unlike the baseline, the split degrades *gradually* before the cliff: ms/sph creeps up from
+    ~2,500 (40 KB, ~60 % of L1). The baseline was flat to ~1,364 and fell off from ~1,500.
+  - **Biggest gain: 1.45–1.50× for N = 2,000–3,800**, where the split still fits L1 and the
+    baseline doesn't. Past both cliffs (N=5000) both are L2-resident: 1.27× (ncu 1.19×).
+  - Combined with 8×8 blocks, at N=5000: 84.0 / 46.2 ≈ **1.8× over the baseline** (different
+    Colab sessions, so approximate).
+
+*Next levers:* for N > ~4,000, split + shared memory / tiling (64 KB of shared memory holds
+4,096 `float4` vs 1,820 `Sphere`); ILP (2 spheres per iteration; 20 spare registers before
+occupancy drops); divergence (22.9 / 32 active threads at 8×8); FP32 instruction count (FMA now 64 %).
 
 ## 11. Open items
 
@@ -600,4 +706,7 @@ divergence (20.4 / 32 active threads).
 - [x] Re-run nsys with a warm-up: added to `profile.sh`; still ~1.28× `compare_sizes.sh` at N=5000 (§9).
 - [ ] Optional: profile baseline N=1819 (the thrashing peak) and shared N=1819 (see §8).
 - [x] Profile split at N=5000 (§10).
-- [ ] Timing sweep split vs baseline (`OPT=multi_reflections_split.cu bash compare_sizes.sh`, §10).
+- [x] Timing sweep split vs baseline (§10).
+- [x] Block-shape sweep and 8×8 profile (§10).
+- [x] Stall breakdown for the 8×8 profile (§10).
+- [ ] Re-run `compare_sizes.sh` with the best block shape (needs a BX/BY pass-through or 8×8 as default).
