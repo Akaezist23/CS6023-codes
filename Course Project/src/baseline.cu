@@ -13,6 +13,7 @@
 // ============================================================================
 
 #include <cstdio>
+#include <cstdlib>
 #include <cmath>
 #include <vector>
 #include <cuda_runtime.h>
@@ -129,8 +130,12 @@ __global__ void renderKernel(unsigned char* image, Sphere* scene, int scene_size
     image[idx + 2] = (unsigned char)(fmin(color.z, 1.0f) * 255);
 }
 
-int main() {
-    const int W = 800, H = 600;
+int main(int argc, char** argv) {
+    // Image size from the command line (same 3-sphere scene as starter_raytracer_cpu.cpp):
+    //   ./baseline <W> <H>
+    int W = (argc > 1) ? std::atoi(argv[1]) : 800;
+    int H = (argc > 2) ? std::atoi(argv[2]) : 600;
+    if (W < 1 || H < 1) { fprintf(stderr, "need W, H >= 1\n"); return 1; }
     std::vector<unsigned char> image(W * H * 3);
     Sphere* d_scene;
     unsigned char* d_image;
@@ -141,8 +146,20 @@ int main() {
     Vec3  cameraPos(0, 1, 3);
     float aspect = (float)W / H;
 
+    // Time just the kernel with CUDA events.
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+    cudaEventRecord(start);
     renderKernel<<<dim3((W + 31) / 32, (H + 31) / 32), dim3(32, 32)>>>(d_image, d_scene, scene.size(), W, H, cameraPos, aspect);
-    // cudaDeviceSynchronize(); 
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+    float kernelMs = 0.0f;
+    cudaEventElapsedTime(&kernelMs, start, stop);
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
+    cudaError_t err = cudaGetLastError();
+    if (err != cudaSuccess) { fprintf(stderr, "CUDA error: %s\n", cudaGetErrorString(err)); return 1; }
     cudaMemcpy(image.data(), d_image, image.size(), cudaMemcpyDeviceToHost);
     cudaFree(d_image);
     cudaFree(d_scene);
@@ -153,6 +170,7 @@ int main() {
     fwrite(image.data(), 1, image.size(), f);
     fclose(f);
     printf("Wrote image.ppm (%dx%d)\n", W, H);
+    printf("Kernel time: %.3f ms\n", kernelMs);
     return 0;
 }
 

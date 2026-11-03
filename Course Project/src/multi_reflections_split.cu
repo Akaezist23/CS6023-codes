@@ -154,7 +154,7 @@ __global__ void renderKernel(unsigned char* image, Sphere* scene, float4* active
 
 int main(int argc, char** argv) {
     // Number of spheres (excluding the floor), reflection depth and energy threshold, from the command line:
-    //   ./multi_reflections <N> <depth> <threshold> <BX> <BY>
+    //   ./multi_reflections <N> <depth> <threshold> <BX> <BY> <W> <H>
     int maxN = (int)scene.size() - 1;                            // scene[0] is the floor
     int N = (argc > 1) ? std::atoi(argv[1]) : maxN;              // render the floor + the first N spheres
     if (N < 1) { fprintf(stderr, "N must be >= 1\n"); return 1; }
@@ -166,11 +166,13 @@ int main(int argc, char** argv) {
     int bx = (argc > 4) ? std::atoi(argv[4]) : 32;               // block size (threads) in x and y
     int by = (argc > 5) ? std::atoi(argv[5]) : 32;
     if (bx < 1 || by < 1 || bx * by > 1024) { fprintf(stderr, "need BX, BY >= 1 and BX * BY <= 1024\n"); return 1; }
+    int W = (argc > 6) ? std::atoi(argv[6]) : 800;               // image size in pixels
+    int H = (argc > 7) ? std::atoi(argv[7]) : 600;
+    if (W < 1 || H < 1) { fprintf(stderr, "need W, H >= 1\n"); return 1; }
     // x = right, y = up, z = toward the viewer (spheres sit near z = -1).
     Vec3  cameraPos(0.0f, 1.0f, 3.0f);
     int   sceneSize = N + 1;
 
-    const int W = 800, H = 600;
     std::vector<unsigned char> image(W * H * 3);
     Sphere* d_scene;
     float4* d_active_scene;

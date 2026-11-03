@@ -10,8 +10,8 @@ set -e
 #     OPT=multi_reflections_split.cu bash compare_sizes.sh
 #   Output is saved to results/compare_sizes_<name>.txt (<name> = OPT without the
 #   multi_reflections_ prefix), or to OUT if given. Override the N list with N_VALUES.
-#   BLOCK="8 8" passes a block size (arguments 4-5) to both programs; versions that do not
-#   read it (e.g. the baseline) ignore it. Compare two optimized versions with BASE, e.g.
+#   BLOCK="8 8" passes a block size (arguments 4-5) to both programs, including the baseline
+#   (multi_reflections_timed.cu reads it too). Compare two optimized versions with BASE, e.g.
 #     BASE=multi_reflections_split.cu OPT=multi_reflections_prefetch.cu BLOCK="8 8" bash compare_sizes.sh
 #
 #   Shared: at most 64 KB per block on the T4 = 1,820 Spheres (36 B each) = floor + 1,819,

@@ -848,8 +848,12 @@ and not in shadows or on the near floor.
   for `c` adds rounding differences of the same kind.
 - Neither image is "the correct one": both are within float precision of the true geometry. The
   difference is a sub-pixel move of silhouettes, the scale anti-aliasing works at.
-- Optional attribution test: keep `a = dot(dir, dir)` (disc = b'² − a·c, divide by a) and see
-  whether the diff mostly disappears. That costs one FMUL per test, plus a division on hits only.
+- Attribution test: keeping `a = dot(dir, dir)` (disc = b'² − a·c, divide by a) leaves **447 / 480,000**
+  differing pixels (0.09 %), down from 1,722. So `a = 1` causes ~74 % of the differences, and the
+  reordered math (r², half-b, `fmaf` sum) the rest. Both are rounding effects on silhouettes.
+  Keeping `a` costs one FMUL per test, plus a division (and its slow-path branch) on hits. Speed of
+  that variant not measured.
+- The diff image is dimmed to 25 % on purpose so the red pixels stand out.
 
 ## 13. Open items
 
