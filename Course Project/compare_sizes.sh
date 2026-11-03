@@ -43,13 +43,15 @@ mean_time() {
 # Correctness: same image at N=400 (each run writes image.ppm)
 ./mr_base 400 "$DEPTH" "$THRESHOLD" > /dev/null && mv image.ppm image_base.ppm
 ./mr_opt  400 "$DEPTH" "$THRESHOLD" > /dev/null && mv image.ppm image_opt.ppm
+{
 echo -n "Image check (N=400): "
 python3 compare_images.py image_base.ppm image_opt.ppm || echo "WARNING: $NAME image differs from baseline"
-rm image_base.ppm image_opt.ppm
 
 # 128-bit global loads in each binary (the split version should have some in the sphere loop)
 echo "LDG.E.128 instructions: baseline $(cuobjdump -sass mr_base | grep -c 'LDG.E.128' || true)," \
      "$NAME $(cuobjdump -sass mr_opt | grep -c 'LDG.E.128' || true)"
+} | tee "$OUT"
+rm image_base.ppm image_opt.ppm
 
 # Untimed warm-up (GPU wake-up / clock ramp)
 ./mr_base 10 "$DEPTH" "$THRESHOLD" > /dev/null
@@ -73,7 +75,7 @@ for N in $N_VALUES; do
     }'
     PREV_N=$N; PREV_B=$B; PREV_O=$O
 done
-} | tee "$OUT"
+} | tee -a "$OUT"
 
 rm mr_base mr_opt
 echo "Saved to $OUT"

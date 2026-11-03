@@ -695,7 +695,54 @@ locked 585 MHz):
 4,096 `float4` vs 1,820 `Sphere`); ILP (2 spheres per iteration; 20 spare registers before
 occupancy drops); divergence (22.9 / 32 active threads at 8×8); FP32 instruction count (FMA now 64 %).
 
-## 11. Open items
+## 11. Optimization 3 — ILP, 2 spheres per loop iteration (`multi_reflections_2sphere.cu`)
+
+*Change* (on top of the split): `closestHit` tests spheres `i` and `i+1` in one pass. Both
+`hitSphere` calls come first, then the two `closest` updates (in order, so ties resolve as
+before), then one shadow exit. A single test after the loop handles an odd `scene_size`.
+Motivation (§10): wait (2.40) + long_scoreboard (2.41) ≈ half the stall cycles at 8×8. In-order
+issue per warp means sphere `i+1` cannot start while sphere `i`'s chain stalls, unless both are in
+the same loop body.
+
+*Timing sweep* (`OPT=multi_reflections_2sphere.cu bash compare_sizes.sh`, 32×32 blocks,
+`results/compare_sizes_2sphere.txt`), against the split run of §10 (different Colab session):
+
+| N | split | 2sphere | 2sphere vs split | 2sphere vs baseline (same session) |
+|---|---|---|---|---|
+| 400 | 4.013 | 4.030 | 1.00× | 1.04× |
+| 1000 | 9.725 | 9.840 | 0.99× | 1.02× |
+| 2000 | 19.622 | 19.943 | 0.98× | 1.45× |
+| 3000 | 30.726 | 31.010 | 0.99× | 1.47× |
+| 3600 | 38.768 | 38.406 | 1.01× | 1.45× |
+| 4000 | 49.558 | 48.938 | 1.01× | 1.30× |
+| 5000 | 66.347 | 67.890 | 0.98× | 1.20× |
+
+- Image check: IDENTICAL. Static `LDG.E.128` count: **2sphere 6 vs split 8** (fewer, not more).
+  Hypothesis: the compiler had already unrolled the split's single-sphere loop ×4 at each of the 2
+  inlined call sites (2 × 4 = 8), so loads for several spheres were already issued together. The manual
+  pair loop + tail gives 2 × (2 + 1) = 6. If so, the ILP was already there.
+  **SASS (`cuobjdump -sass | grep -n LDG.E.128`): unroll confirmed, overlap refuted.**
+  - Split: `[R20]`, `[R20+0x10]`, `+0x20`, `+0x30` = spheres i..i+3 (×4 unroll), plus a ×3 group
+    and a remainder load. But they are **~110 SASS lines apart and all load into R4**.
+  - 2sphere: `[R8]` and `[R8+0x10]`, also ~108 lines apart, also into R4, then the tail `[R2]`.
+  - So in *both* versions each load is followed by that sphere's whole test before the next load
+    is issued (same destination registers ⇒ strictly one sphere in flight). The manual pairing did
+    not change the schedule, which explains the null result.
+  - Likely cause: `hitSphere` is not straight-line code. `if (disc < 0) return -1`, the `sqrt`, and
+    the IEEE division `/(2*a)` (reciprocal + slow-path branch) put branches inside every sphere test,
+    and the compiler does not move the next load above them.
+  - Options: (a) load both `float4`s into locals at the top of the pass, before any `hitSphere`
+    math; (b) make the test branch-free (select instead of early return, no division in the loop);
+    (c) software prefetch: load sphere i+1 while testing sphere i (register double-buffering).
+- **No measurable gain at 32×32**: within ±2 %, about the session-to-session noise (the baseline
+  itself moved 84.0 → 81.5 ms at N=5000 between the two sessions).
+- Cliff slightly earlier than the split (3,600 → 3,800 jumps to 0.0246 ms/sph), possibly noise.
+- Not yet known *why*. To check: the image check / `LDG.E.128` lines; SASS of the loop (are the
+  two `LDG.E.128` adjacent, or still separated?); `hitSphere`'s `if (disc < 0) return -1` is a
+  branch at the end of each chain; per-warp stalls only cost time when no other warp is eligible.
+  Next: 8×8 block sweep and an 8×8 profile vs `profiles_split_8x8`.
+
+## 12. Open items
 
 - [x] ncu **Source** page: stalls are ~98 % in the sphere loop; 4 scalar `LDG` per sphere (§3.6).
 - [x] Warning triangles and line-50 stall breakdown (§3.6).

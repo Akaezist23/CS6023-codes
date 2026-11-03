@@ -44,7 +44,7 @@ for S in $SHAPES; do
     ./mr_blocks 400 "$DEPTH" "$THRESHOLD" ${S/x/ } > /dev/null
     echo -n "Image check $S vs $REF (N=400): "
     python3 compare_images.py image_ref.ppm image.ppm || echo "WARNING: $S image differs"
-done
+done | tee "$OUT"
 rm -f image_ref.ppm
 
 # Untimed warm-up (GPU wake-up / clock ramp)
@@ -65,7 +65,7 @@ for N in $N_VALUES; do
     echo $TIMES | awk '{ for (i = 1; i <= NF; i++)
         printf " %10s", ($1 != "fail" && $i != "fail") ? sprintf("%.2fx", $1 / $i) : "-"; print "" }'
 done
-} | tee "$OUT"
+} | tee -a "$OUT"
 
 rm mr_blocks
 echo "Saved to $OUT"
