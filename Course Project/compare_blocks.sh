@@ -12,6 +12,7 @@ set -e
 #   32x8 keeps the current warp shape (one 32-pixel row) and only changes block granularity;
 #   16x16 also changes the warp shape to 16x2 pixels (may change divergence).
 SRC=${SRC:-multi_reflections_split.cu}
+[ -f "$SRC" ] || SRC=src/$SRC   # sources live in src/; a bare file name also works
 NAME=$(basename "$SRC" .cu); NAME=${NAME#multi_reflections_}
 DEPTH=${1:-10}
 THRESHOLD=${2:-0.01}

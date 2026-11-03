@@ -785,8 +785,30 @@ Sessions differ (baseline at N=5000: 84.0 ms in the split session, 78.1 ms here)
   (49.6 ms) is not faster than split 8×8 (46.2 ms, other session).
 - **TLP and ILP hide the same latency.** With 8×8 blocks, other warps already cover most of the load
   wait. Once one mechanism has hidden it, the other adds little but keeps its instruction overhead.
-- To settle it, compare in **one session**: `BASE=multi_reflections_split.cu
-  OPT=multi_reflections_prefetch.cu`, at both 32×32 and 8×8.
+*Same-session comparison, split vs prefetch* (`BASE=multi_reflections_split.cu
+OPT=multi_reflections_prefetch.cu [BLOCK="8 8"] bash compare_sizes.sh`; images IDENTICAL;
+`results/compare_sizes_prefetch.txt`, `results/compare_sizes_prefetch_8x8.txt`). Prefetch speedup over split:
+
+| N | 32×32 | 8×8 |
+|---|---|---|
+| 400–3600 | 0.93–0.98× | 0.93–0.97× |
+| 3800 | 0.96× | 0.93× |
+| 4000 | 1.00× | 0.94× |
+| 5000 | **1.03×** | 0.96× |
+
+- **Prefetch is slower almost everywhere: ~5 % at 32×32, ~5 % at 8×8.** It only breaks even or wins
+  slightly at 32×32 for N ≥ 4,000 (past the split's L1 cliff, few warps to hide misses).
+- **Conclusion: drop it.** TLP (8×8 blocks) hides the same load latency without adding instructions.
+  At 8×8 the kernel is closer to issue-bound (issue slots 62 %, FMA 64 %), so every extra
+  instruction costs time directly. The cross-session estimates above (1.35× vs 1.30× at N=4000)
+  overstated prefetch. Same-session runs are needed for differences of a few %.
+- Side result: at 8×8 the split's own L1 cliff is mild (ms/sph 0.0075–0.0087 → 0.0106–0.0139 for
+  N ≥ 3,800, vs a 0.0248 jump at 32×32). More warps also hide most of the cliff.
+- **Current best: split + 8×8 blocks** (47.1 ms at N=5000 in this session).
+- Both ILP attempts (§11 and §11.1) failed for the same reason: neither removed work, and the
+  latency they target is already mostly hidden by other warps. Next levers should *remove
+  instructions*: fewer FP32 ops per sphere test (FMA pipe), divergence. Or remove misses for
+  N > 4,000 (split + shared / tiling).
 
 ## 12. Open items
 

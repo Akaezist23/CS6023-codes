@@ -9,6 +9,7 @@ set -e
 #     SRC=multi_reflections_shared.cu OUT=profiles_shared_1819 bash nsys_profile.sh 1819
 #   Writes $OUT/nsys_report.nsys-rep and $OUT/nsys_stats.txt.
 SRC=${SRC:-multi_reflections_timed.cu}
+[ -f "$SRC" ] || SRC=src/$SRC   # sources live in src/; a bare file name also works
 OUT=${OUT:-profiles}
 ARGS="$@"
 mkdir -p "$OUT"

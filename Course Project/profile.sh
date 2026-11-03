@@ -9,6 +9,7 @@ set -e
 # Pick the source file with SRC and the report folder with OUT, e.g.
 #   SRC=multi_reflections_shared.cu OUT=profiles_shared bash profile.sh 400
 SRC=${SRC:-multi_reflections_timed.cu}
+[ -f "$SRC" ] || SRC=src/$SRC   # sources live in src/; a bare file name also works
 ARGS="$@"
 OUT=${OUT:-profiles}
 mkdir -p "$OUT"

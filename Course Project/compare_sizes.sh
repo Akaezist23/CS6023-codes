@@ -20,6 +20,8 @@ set -e
 #   the extra N values 3300-3800 are there to locate its cliff.
 BASE=${BASE:-multi_reflections_timed.cu}
 OPT=${OPT:-multi_reflections_shared.cu}
+[ -f "$BASE" ] || BASE=src/$BASE   # sources live in src/; bare file names also work
+[ -f "$OPT" ] || OPT=src/$OPT
 NAME=$(basename "$OPT" .cu); NAME=${NAME#multi_reflections_}
 DEPTH=${1:-10}
 THRESHOLD=${2:-0.01}
