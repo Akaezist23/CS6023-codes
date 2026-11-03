@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 # Compare two PPM (P6) images pixel by pixel.
-# Usage: python3 compare_images.py reference.ppm candidate.ppm
+# Usage: python3 compare_images.py reference.ppm candidate.ppm [diff.ppm]
 # Exit code 0 if identical, 1 otherwise.
+# With diff.ppm, also writes an image of the reference dimmed to 25 %, with every
+# differing pixel in red (brightness = size of the difference, at least 50 %).
 import sys
 
 
@@ -35,6 +37,15 @@ for i in range(0, len(a), 3):
         max_diff = max(max_diff, d)
         if first is None:
             first = (i // 3 % w1, i // 3 // w1)
+
+if len(sys.argv) > 3:
+    out = bytearray(x // 4 for x in a)
+    for i in range(0, len(a), 3):
+        d = max(abs(a[i] - b[i]), abs(a[i + 1] - b[i + 1]), abs(a[i + 2] - b[i + 2]))
+        if d:
+            out[i:i + 3] = bytes((max(d, 128), 0, 0))
+    with open(sys.argv[3], "wb") as f:
+        f.write(b"P6\n%d %d\n255\n" % (w1, h1) + bytes(out))
 
 total = w1 * h1
 if diff_px == 0:
