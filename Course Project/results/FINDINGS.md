@@ -810,7 +810,48 @@ OPT=multi_reflections_prefetch.cu [BLOCK="8 8"] bash compare_sizes.sh`; images I
   instructions*: fewer FP32 ops per sphere test (FMA pipe), divergence. Or remove misses for
   N > 4,000 (split + shared / tiling).
 
-## 12. Open items
+## 12. Optimization 4 — fewer FP32 instructions per sphere test (`multi_reflections_fma.cu`)
+
+*Change* (on top of the split, `hitSphere` only):
+- `.w` stores r² (computed on the host) instead of r.
+- Half-b form with `a = dot(dir, dir) = 1`: every direction passed to `closestHit` is normalized
+  (primary, `toLight`, reflected). `b' = dot(oc, dir)`, `disc' = b'² − c` (one FFMA),
+  `t = −b' − √disc'` (no division, so no IEEE slow-path branch).
+- `c = fmaf(oc.z, oc.z, fmaf(oc.y, oc.y, fmaf(oc.x, oc.x, −r²)))`: starting the sum from −r² folds
+  the subtraction into the first FFMA. The compiler cannot reorder it itself (float addition is not
+  associative, and the code is built without fast-math).
+
+*FP32 instructions per sphere test* (ncu counters ÷ 5.74 G tests, N=5000, 8×8):
+
+| | split | fma |
+|---|---|---|
+| FADD | 4 | 3 |
+| FMUL | 3 | 1 |
+| FFMA | 6 | 6 |
+| **total** | **13** | **10** (−23 %) |
+
+*Profile 8×8, N=5000* (`profiles_fma_8x8` vs `profiles_split_8x8`): duration 112.6 → 104.6 ms
+(1.08×); instructions −10 %; FMA pipe 64 → 56 %; IPC 2.66 → 2.57 (the removed instructions were
+partly ones that issued in otherwise idle slots); registers 44 → 43; occupancy 80.7 → 81.4 %.
+
+*Timing* (`BASE=multi_reflections_split.cu OPT=multi_reflections_fma.cu BLOCK="8 8"`, same session,
+`results/compare_sizes_fma_8x8.txt`): **1.06–1.13× over the split at every N** (N=5000: 45.8 →
+41.9 ms).
+
+*Image: not bit-identical.* 1,722 / 480,000 pixels (0.36 %) differ, max 212/255. Diff image
+(`compare_images.py split.ppm fma.ppm diff.ppm`): the differing pixels are isolated single pixels
+on the **silhouettes of small / distant spheres** and inside mirror reflections. They are not in blobs,
+and not in shadows or on the near floor.
+- Cause: `a = 1` holds only to ~1e-7. For a small far sphere, |oc|² / r² ≈ 100 / 0.0016 ≈ 6·10⁴,
+  so that 1e-7 shifts the hit/miss boundary by ~0.3 % of the radius. A pixel whose ray grazes the
+  rim can flip between sphere and background, a large colour jump in one pixel. The reordered sum
+  for `c` adds rounding differences of the same kind.
+- Neither image is "the correct one": both are within float precision of the true geometry. The
+  difference is a sub-pixel move of silhouettes, the scale anti-aliasing works at.
+- Optional attribution test: keep `a = dot(dir, dir)` (disc = b'² − a·c, divide by a) and see
+  whether the diff mostly disappears. That costs one FMUL per test, plus a division on hits only.
+
+## 13. Open items
 
 - [x] ncu **Source** page: stalls are ~98 % in the sphere loop; 4 scalar `LDG` per sphere (§3.6).
 - [x] Warning triangles and line-50 stall breakdown (§3.6).

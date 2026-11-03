@@ -57,11 +57,12 @@ __device__ float hitSphere(const float4& s, Vec3 origin, Vec3 dir) {
     Vec3  center(s.x, s.y, s.z);
     float radius2 = s.w;
     Vec3  oc = origin - center;
+    float a = dot(dir, dir);
     float b = dot(oc, dir);
     float c = fmaf(oc.z, oc.z, fmaf(oc.y, oc.y, fmaf(oc.x, oc.x, -radius2)));
-    float disc = b * b - c; 
+    float disc = b * b - a * c; 
     if (disc < 0) return -1.0f;                 // no real solution -> miss
-    float t = (-b - std::sqrt(disc)); // nearest intersection
+    float t = (-b - std::sqrt(disc))/a; // nearest intersection
     return (t > 0.001f) ? t : -1.0f;
 }
 
