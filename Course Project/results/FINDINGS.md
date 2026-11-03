@@ -742,6 +742,52 @@ the same loop body.
   branch at the end of each chain; per-warp stalls only cost time when no other warp is eligible.
   Next: 8×8 block sweep and an 8×8 profile vs `profiles_split_8x8`.
 
+### 11.1 Software prefetch (`multi_reflections_prefetch.cu`)
+
+*Change* (on top of the split, single-sphere loop): `curr` holds sphere `i`; at the top of each pass,
+`next = active_scene[i+1]` (guarded) is issued *before* `hitSphere(curr)`; `curr = next` at the end.
+
+*SASS:* the compiler still unrolls ×4, but the loads now go to **rotating registers** (R12, R16, R20,
+R24, …) and are predicated (`@!P0`, the bounds guard). Each sphere's data is loaded one full test
+(~110 SASS lines) before its first use. The overlap is now in the schedule.
+
+*Timing* (32×32; `results/compare_sizes_prefetch.txt`; image IDENTICAL; 8 `LDG.E.128`).
+Sessions differ (baseline at N=5000: 84.0 ms in the split session, 78.1 ms here), so compare
+**speedup over the same-session baseline**:
+
+| N | split vs base | prefetch vs base | prefetch ms/sph |
+|---|---|---|---|
+| 400 | 1.09× | 0.98× | – |
+| 1000 | 1.04× | 0.97× | 0.01002 |
+| 1819 | 1.39× | 1.30× | 0.01203 |
+| 2000 | 1.48× | 1.40× | 0.01058 |
+| 3000 | 1.50× | 1.40× | 0.01158 |
+| 3600 | 1.47× | 1.38× | 0.01251 |
+| 3800 | 1.45× | 1.37× | 0.01459 |
+| 4000 | 1.30× | **1.35×** | **0.01660** (split: 0.03664) |
+| 5000 | 1.27× | 1.28× | 0.01550 |
+
+- **While the scene fits in L1, prefetch is ~6–9 % slower than the split.** L1 hits are short, so there
+  is little latency to hide, and the extra predicated load, guard and register copies cost instructions.
+- **The split's cliff at 3,800 → 4,000 is gone**: 0.0166 ms/sph vs 0.0366. Where misses start, the
+  prefetch hides them. At N=4000, 1.35× vs 1.30×.
+- At N=5000 (fully L2-resident): equal (1.28× vs 1.27×). Expected more. Needs a profile.
+
+*Block sweep* (`results/compare_blocks_prefetch.txt`, all shapes IDENTICAL):
+
+| N | 32×32 | 8×8 | 8×8 gain | split 8×8 gain (§10) |
+|---|---|---|---|---|
+| 400 | 4.231 | 3.227 | 1.31× | 1.30× |
+| 3000 | 31.797 | 24.561 | 1.29× | 1.27× |
+| 5000 | 60.426 | 49.607 | **1.22×** | **1.39×** |
+
+- At N=5000, small blocks help the prefetch version much less (1.22× vs 1.39×), and prefetch 8×8
+  (49.6 ms) is not faster than split 8×8 (46.2 ms, other session).
+- **TLP and ILP hide the same latency.** With 8×8 blocks, other warps already cover most of the load
+  wait. Once one mechanism has hidden it, the other adds little but keeps its instruction overhead.
+- To settle it, compare in **one session**: `BASE=multi_reflections_split.cu
+  OPT=multi_reflections_prefetch.cu`, at both 32×32 and 8×8.
+
 ## 12. Open items
 
 - [x] ncu **Source** page: stalls are ~98 % in the sphere loop; 4 scalar `LDG` per sphere (§3.6).

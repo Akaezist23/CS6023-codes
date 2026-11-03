@@ -10,6 +10,9 @@ set -e
 #     OPT=multi_reflections_split.cu bash compare_sizes.sh
 #   Output is saved to results/compare_sizes_<name>.txt (<name> = OPT without the
 #   multi_reflections_ prefix), or to OUT if given. Override the N list with N_VALUES.
+#   BLOCK="8 8" passes a block size (arguments 4-5) to both programs; versions that do not
+#   read it (e.g. the baseline) ignore it. Compare two optimized versions with BASE, e.g.
+#     BASE=multi_reflections_split.cu OPT=multi_reflections_prefetch.cu BLOCK="8 8" bash compare_sizes.sh
 #
 #   Shared: at most 64 KB per block on the T4 = 1,820 Spheres (36 B each) = floor + 1,819,
 #   so it is expected to fail from N = 1820 on (shown as "fail").
@@ -22,7 +25,8 @@ DEPTH=${1:-10}
 THRESHOLD=${2:-0.01}
 N_VALUES=${N_VALUES:-"400 600 800 1000 1200 1364 1365 1500 1700 1819 1820 2000 2500 3000 3300 3600 3800 4000 5000"}
 RUNS=3
-OUT=${OUT:-results/compare_sizes_$NAME.txt}
+BLOCK=${BLOCK:-}
+OUT=${OUT:-results/compare_sizes_$NAME${BLOCK:+_${BLOCK/ /x}}.txt}
 mkdir -p results
 
 nvcc "$BASE" -o mr_base -O2 -std=c++11
@@ -32,7 +36,7 @@ nvcc "$OPT"  -o mr_opt  -O2 -std=c++11
 mean_time() {
     local bin=$1 n=$2 times="" t
     for ((r = 0; r < RUNS; r++)); do
-        if ! t=$(./"$bin" "$n" "$DEPTH" "$THRESHOLD" 2>/dev/null | awk '/Kernel time:/ {print $3}') || [ -z "$t" ]; then
+        if ! t=$(./"$bin" "$n" "$DEPTH" "$THRESHOLD" $BLOCK 2>/dev/null | awk '/Kernel time:/ {print $3}') || [ -z "$t" ]; then
             echo fail; return
         fi
         times="$times $t"
@@ -41,8 +45,8 @@ mean_time() {
 }
 
 # Correctness: same image at N=400 (each run writes image.ppm)
-./mr_base 400 "$DEPTH" "$THRESHOLD" > /dev/null && mv image.ppm image_base.ppm
-./mr_opt  400 "$DEPTH" "$THRESHOLD" > /dev/null && mv image.ppm image_opt.ppm
+./mr_base 400 "$DEPTH" "$THRESHOLD" $BLOCK > /dev/null && mv image.ppm image_base.ppm
+./mr_opt  400 "$DEPTH" "$THRESHOLD" $BLOCK > /dev/null && mv image.ppm image_opt.ppm
 {
 echo -n "Image check (N=400): "
 python3 compare_images.py image_base.ppm image_opt.ppm || echo "WARNING: $NAME image differs from baseline"
@@ -54,11 +58,11 @@ echo "LDG.E.128 instructions: baseline $(cuobjdump -sass mr_base | grep -c 'LDG.
 rm image_base.ppm image_opt.ppm
 
 # Untimed warm-up (GPU wake-up / clock ramp)
-./mr_base 10 "$DEPTH" "$THRESHOLD" > /dev/null
-./mr_opt  10 "$DEPTH" "$THRESHOLD" > /dev/null
+./mr_base 10 "$DEPTH" "$THRESHOLD" $BLOCK > /dev/null
+./mr_opt  10 "$DEPTH" "$THRESHOLD" $BLOCK > /dev/null
 
 {
-echo "baseline = $BASE, $NAME = $OPT"
+echo "baseline = $BASE, $NAME = $OPT${BLOCK:+, block ${BLOCK/ /x}}"
 echo "depth $DEPTH, threshold $THRESHOLD, $RUNS runs per N, times in ms"
 echo "ms/sph = (time - previous time) / (N - previous N), i.e. cost of each extra sphere (only for steps >= 50)"
 printf "%6s %10s %10s %9s %14s %14s\n" "N" "baseline" "$NAME" "speedup" "base ms/sph" "$NAME ms/sph"
