@@ -21,7 +21,7 @@ DEPTH=${1:-10}
 THRESHOLD=${2:-0.01}
 N_VALUES=${N_VALUES:-"400 3000 5000"}
 SHAPES=${SHAPES:-"32x32 32x16 32x8 32x4 16x16 16x8 8x8"}
-RUNS=3
+RUNS=${RUNS:-3}   # runs per data point; override with RUNS=20
 OUT=${OUT:-results/compare_blocks_$NAME$SUFFIX.txt}
 mkdir -p results
 

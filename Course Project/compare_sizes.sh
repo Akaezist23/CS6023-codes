@@ -29,7 +29,7 @@ NAME=$(basename "$OPT" .cu); NAME=${NAME#multi_reflections_}
 DEPTH=${1:-10}
 THRESHOLD=${2:-0.01}
 N_VALUES=${N_VALUES:-"400 600 800 1000 1200 1364 1365 1500 1700 1819 1820 2000 2500 3000 3300 3600 3800 4000 5000"}
-RUNS=3
+RUNS=${RUNS:-3}   # runs per data point; override with RUNS=20
 BLOCK=${BLOCK:-}
 OUT=${OUT:-results/compare_sizes_$NAME${BLOCK:+_${BLOCK/ /x}}$SUFFIX.txt}
 mkdir -p results

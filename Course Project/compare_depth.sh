@@ -18,7 +18,7 @@ N=${N:-400}
 DEPTHS=${DEPTHS:-"0 1 2 3 4 5 6 7 8 9 10"}
 THRESHOLD=${1:-0.01}
 SAVE_IMAGES=${SAVE_IMAGES:-0}
-RUNS=3
+RUNS=${RUNS:-3}   # runs per data point; override with RUNS=20
 SCENE=${SCENE:-}   # e.g. SCENE=scene_adversarial.h (a header in src/); empty = scene.h
 NVFLAGS=${SCENE:+-DSCENE_FILE=\"$SCENE\"}
 SUFFIX=${SCENE:+_$(basename "$SCENE" .h)}

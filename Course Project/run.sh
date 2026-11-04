@@ -15,7 +15,7 @@ SUFFIX=${SCENE:+_$(basename "$SCENE" .h)}
 DEPTH=${1:-10}
 THRESHOLD=${2:-0.01}
 N_VALUES="10 20 50 100 200 300 400"
-RUNS=5
+RUNS=${RUNS:-5}   # runs per data point; override with RUNS=20
 
 # Build
 # g++ -O2 -o raytracer_cpu starter_raytracer_cpu.cpp

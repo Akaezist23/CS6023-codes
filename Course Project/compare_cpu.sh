@@ -14,7 +14,7 @@ set -e
 W=${1:-800}
 H=${2:-600}
 CXXFLAGS=${CXXFLAGS:--O2}
-RUNS=5
+RUNS=${RUNS:-5}   # runs per data point; override with RUNS=20
 OUT=results/compare_cpu.txt
 mkdir -p results
 

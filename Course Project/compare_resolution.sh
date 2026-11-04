@@ -15,7 +15,7 @@ N=${N:-400}
 RESOLUTIONS=${RESOLUTIONS:-"320x240 640x480 800x600 1280x960 1600x1200 2400x1800 3200x2400"}
 DEPTH=${1:-10}
 THRESHOLD=${2:-0.01}
-RUNS=3
+RUNS=${RUNS:-3}   # runs per data point; override with RUNS=20
 SCENE=${SCENE:-}   # e.g. SCENE=scene_adversarial.h (a header in src/); empty = scene.h
 NVFLAGS=${SCENE:+-DSCENE_FILE=\"$SCENE\"}
 SUFFIX=${SCENE:+_$(basename "$SCENE" .h)}
