@@ -1,0 +1,229 @@
+
+High Performance Computing Environment
+
+P.G.Senapathy Centre for Computing Resources
+Login
+
+    AQUA CLUSTER
+        My HPCE A/C
+        Getting Started
+        Job Status
+        Software Stack
+        Executable Paths
+        PBS Info
+        CPU Job Scripts
+            Abaqus
+            Ansys/Fluent
+            Comsol
+            Gaussian09
+            Gaussian16
+            Gromacs
+            Mathematica
+            Matlab
+            Namd
+            OpenMP
+            Openfoam
+            Using Compilers
+            Others
+        GPU Job Scripts
+            Amber
+            Cuda
+            Gromacs
+            NAMD
+    HPCE ACCESS
+        Create HPCE A/C
+        HPCE Policies
+        Pricing Options
+    SUPPORT
+        Licensing
+            Registration
+            Usage
+            Modules
+                Abaqus
+                Ansys
+                Comsol
+                Matlab
+            Status
+            Information
+        New HPCE User Info
+        Accessing HPCE A/C
+        Commercial Software Download
+        Opensource Software
+        Research Publications
+        Cluster FAQ
+    GENERAL INFO
+        Batch Processing System
+        Introduction to Parallel Computing
+        Optimization in General
+        SSH Usage
+        Manuals/Tutorials
+            Matlab License
+            Open Source Software
+            Software Manuals
+            Tutorial For Parallel Programming
+        Workshops Conducted
+    CONTACT
+    GALLERY
+
+Signed in as cs23b078  Signout
+
+
+Welcome to HIGH PERFORMANCE COMPUTING ENVIRONMENT!
+
+
+If you are familiar with Linux, it should be fairly trivial to work with cluster job submission. More information regarding the job script for application specific and submission can be found at https://hpce.iitm.ac.in or you can drop us a mail to hpce@iitm.ac.in for further queries.
+
+Getting an account in hpce
+
+In order to use HPCE resources you must have an account on each cluster or resource you are planning to work on.
+
+A valid LDAP/ADS emailid is required in order to login to CC web site for creating a request for new/renewal of account.
+
+To request access to HPC clusters, please login to the hpce.iitm.ac.in site.
+
+After login, click the link located at menu "HPCE ACCESS ---> CREATE HPCE A/C” and fill in all required information including your faculty email id. An email will be sent to your faculty seeking his/her approval for creating the requested account.
+
+Please keep our institute email address of yours valid at all times as all notifications and important communications from HPCE will be sent to it.
+
+Once you applied or got the a/c, you can keep track of the approval or renewal status from the menu "HPCE ACCESS ---> MY HPCE A/C”
+
+
+LOGIN PROCEDURE
+
+
+NOTE: First time login will be enforced to change the password.
+
+After successful login, You are on to your home directory.
+
+    Window's User:
+        Please install SSH client from ftp://ccftp.iitm.ac.in/ssh/SSHSecureShellClient-3.2.9.exe on your local system. Else you can use your convenient ssh login software.
+        Click on the SSH secure shell client icon.
+        Please click the Quick Connect Button.
+        Please enter the following details:
+            Hostname: aqua.iitm.ac.in Port No: 40826
+            Username: your user account
+            Click on connect, it will prompt for password, and then enter your respective password. 
+    Linux Users:
+        Open the Terminal, and type
+            ssh username@aqua.iitm.ac.in -p 40826
+            It will prompt for password, enter your respective password.
+            After successful login, You are on to your home directory. 
+
+Section I. Password reset/Changing password
+
+1. To change your password
+At the time of your first login, it'll automatically enforce you to change the password. If you miss it or you want to change it later, you can able to change the password using the below command once you logged in.
+
+Type
+$ passwd
+
+and respond to the prompts by entering your old password and your new password. Please remember that this will change your password.
+
+2. Obtaining a new password
+
+If you have forgotten your password, just send an email to hpce@iitm.ac.in with your account details from your IITM mail ID.
+
+Section II. Uploading/Downloading files to AQUA
+
+1. In Linux,
+i. For uploading a file/folder to AQUA:
+$ scp file username@aqua.iitm.ac.in:
+$ scp -r folder username@aqua.iitm.ac.in:
+
+ii. For downloading a file/folder from AQUA
+$ scp file username@ipaddress: [username & ip address of your system]
+$ scp -r folder username@ipaddress: [username & ip address of your system]
+
+2. In Windows,
+For uploading & downloading, kindly use a ssh file transfer window.
+
+Section III. Getting Started with job submission
+
+1.CPU Job Submission
+Example Steps:
+Create a new folder [NOTE: Please avoid space or special characters in between file or folder name and also avoid nesting of subdirectory levels.]
+Worst practice: $HOME/xx/yy/zz/td/n3/sample.cmd ✖
+Best practice:$HOME/xx/yy_zz/td_n3/sample.cmd ✔
+$ mkdir cputest
+$ cd cputest
+Create/Copy your program inside that folder
+$ vi inputfile.c
+Create a submission script
+$ vi csample.cmd
+Copy the appropriate content from this link to the submission script
+Submit the job
+$ qsub csample.cmd
+Check job status
+$ qstat -an
+
+To delete/cancel a job
+$ qdel jobid
+
+For more detailed information, please refer this link
+
+2. GPU Job Submission
+
+NOTE:Compilation has to be done via PBS script as the head node does not have GPU cards.
+
+Example Steps:
+Create a new folder [NOTE: Please avoid space or special characters in between file or folder name and also avoid nesting of subdirectory levels.]
+Worst practice: $HOME/xx/yy/zz/td/n3/sample.cmd ✖
+Best practice:$HOME/xx/yy_zz/td_n3/sample.cmd ✔
+$ mkdir gputest
+$ cd gputest
+Create/Copy your program inside that folder
+$ vi inputfile.c
+Create a submission script
+$ vi csample.cmd
+Copy the appropriate content from this link to the submission script
+Submit the job
+$ qsub csample.cmd
+Check job status
+$ qstat -an
+
+To delete/cancel job
+$ qdel jobid
+
+Section IV. Frequent Cleanup
+
+Please avoid dumping unwanted files and folders into your account (In both home direcory or scratch directory). Freeup the space by downloading the executed job files to your system frequently. Overconsumption may lead to many system wide technical issues in the terms of performance and job execution. So please avoid such situation.
+
+Section V. General Information/Effective Use of the system
+
+❖ Do not share your account with anyone.
+
+❖ Do not run any calculations on the login node -- use the queuing system. If everyone does this, the login nodes will crash keeping 700+ HPC users from being able to login to the cluster.
+
+❖ Files belonging to the completed jobs in the scratch space will be automatically deleted after 7 days of completion of jobs.
+
+❖ Please avoid spacing or special characters in between the file or folder name.
+
+eg:Instead of creating like mkdir cpu testjob ,use mkdir cputestjob or mkdir cpu_testjob
+
+❖ Please avoid nesting of subdirectory levels.
+
+eg:Instead of creating like $HOME/xx/yy/zz/td/n3/sample.cmd ,use $HOME/xx/yy_zz/td_n3/sample.cmd
+
+❖ Try to use the local scratch defined for executing serial/openmp jobs
+
+❖ Replace the line tmpdir=$HOME/scratch/job$Jobid in the script file as tmpdir=/lscratch/$LOADL_STEP_OWNER/job$Jobid
+
+❖ Jobs got aborted will not copy files from the scratch folder of the users and it is the responsibility of the users to delete these files
+
+❖Executable Path
+
+The Current version of all the installed software has been updated in your profile. If you need some older version path then load the older version path using module load command.
+
+For more details please visit HPCE Website.
+
+❖ How to Check Space Usage
+
+$quota
+
+❖ Basic linux commands and vi editor commands are also available in the our website. Please visit this link.
+
+
+Good luck with your simulations!
+HPCE Crew
+
+

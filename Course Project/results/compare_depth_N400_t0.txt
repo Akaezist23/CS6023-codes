@@ -1,0 +1,14 @@
+N 400, threshold 0, 3 runs per point, times in ms
+speedup = time(timed@32x32) / time(fma@8x8); step = time(d) - time(d-1) of the last version
+ depth        timed@32x32            fma@8x8   speedup      step
+     0              1.703              1.290     1.32x         -
+     1              2.387              1.849     1.29x     0.559
+     2              3.071              2.243     1.37x     0.394
+     3              3.618              2.565     1.41x     0.322
+     4              4.096              2.819     1.45x     0.254
+     5              4.481              3.046     1.47x     0.227
+     6              4.846              3.222     1.50x     0.176
+     7              5.183              3.406     1.52x     0.184
+     8              5.467              3.559     1.54x     0.153
+     9              5.671              3.661     1.55x     0.102
+    10              5.825              3.804     1.53x     0.143

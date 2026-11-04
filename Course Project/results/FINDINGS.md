@@ -855,7 +855,83 @@ and not in shadows or on the near floor.
   that variant not measured.
 - The diff image is dimmed to 25 % on purpose so the red pixels stand out.
 
-## 13. Open items
+## 13. Report measurements — CPU vs GPU, depth, resolution
+
+Scripts: `compare_cpu.sh`, `compare_depth.sh`, `compare_resolution.sh`. "Baseline" = `timed@32x32`,
+"best" = `fma@8x8` (split + 8×8 blocks + fewer FP ops).
+
+### 13.1 CPU vs GPU (`results/compare_cpu.txt`)
+Starter scene (3 spheres + floor, no reflections), 800×600; `starter_raytracer_cpu.cpp` (g++ -O2,
+1 thread) vs its CUDA port `src/baseline.cu` (32×32 blocks), 5 runs.
+
+| | mean (ms) |
+|---|---|
+| CPU, whole process (includes writing the PPM) | 47.1 |
+| GPU kernel (CUDA events) | **0.159** (296× faster) |
+| GPU, whole process | 240.5 (0.20×, i.e. 5× *slower*) |
+
+- Images match: 4 / 480,000 pixels differ by 1/255 (FMA contraction on the GPU).
+- For a trivial scene the GPU process is dominated by CUDA context setup and copies, not the kernel.
+  That is why all other measurements time the kernel only, with a larger scene.
+
+### 13.2 Bounce depth (`results/compare_depth_N400_t0.01.txt`, `..._t0.txt`, `..._N5000_t0.01.txt`)
+
+| depth | N=400, t=0.01: base / best | N=400, t=0: base / best | N=5000, t=0.01: base / best |
+|---|---|---|---|
+| 0 | 1.784 / 1.410 (1.27×) | 1.703 / 1.290 (1.32×) | 26.04 / 16.73 (1.56×) |
+| 1 | 2.552 / 1.866 | 2.387 / 1.849 | 39.56 / 27.17 |
+| 2 | 3.048 / 2.240 | 3.071 / 2.243 | 52.03 / 30.58 |
+| 3 | 3.545 / 2.552 | 3.618 / 2.565 | 63.11 / 36.08 |
+| 5 | 4.027 / 2.799 | 4.481 / 3.046 | 78.79 / 41.67 |
+| 10 | 4.108 / 2.825 (1.45×) | 5.825 / 3.804 (1.53×) | 80.17 / 42.62 (1.88×) |
+
+- **With threshold 0.01 the time plateaus at depth ≈ 5**: by then almost every ray has dropped below
+  1 % energy or escaped to the sky. Depths 6–10 add no work (negative steps = noise).
+- **Threshold 0**: time keeps growing, but each level costs less (step 0.56 → 0.14 ms for the best
+  version), since rays still stop at sky misses and fully diffuse surfaces (k = 0 ⇒ energy 0).
+  At depth 10 the threshold saves 29 % (baseline) / 26 % (best).
+- **Speedup grows with depth** (1.27–1.32× at depth 0 → 1.45–1.55× at depth 10; N=5000: 1.56× →
+  1.88×). Deeper bounces mean more divergence (rays in a warp stop at different depths), which
+  compact 8×8 warps reduce. Consistent with §10.
+- *Visual effect of depth* (`results/depth_images/depth_<d>.png`, best version, N=400, t=0.01).
+  Pixels that change from depth d−1 to d:
+
+  | step | changed pixels | mean abs diff | max diff |
+  |---|---|---|---|
+  | 0 → 1 | 44.9 % | 21.2 | 230 |
+  | 1 → 2 | 18.9 % | 3.09 | 207 |
+  | 2 → 3 | 6.8 % | 0.40 | 186 |
+  | 3 → 4 | 2.2 % | 0.063 | 75 |
+  | 4 → 5 | 0.16 % | 0.005 | 51 |
+  | 5 → 6 | 70 px | ~0 | 8 |
+  | 6 → 7, 7 → 8 | 7, 1 px | ~0 | ≤ 6 |
+  | 8 → 9, 9 → 10 | 0 | 0 | 0 |
+
+  - Depth 1 is the big visual step: mirror spheres and floor gain reflections, and the floor brightens.
+    Depth 2–3 add reflections-of-reflections between neighbouring mirror spheres. From depth 4 the
+    changes are below what is visible (mean < 0.1/255), and from depth 9 the image is bit-identical.
+  - Both the image and the time stop changing around depth 5 simply because the energy threshold
+    has already stopped (almost) every ray by then; a higher max depth is never reached.
+
+### 13.3 Resolution (`results/compare_resolution_N400.txt`, N=400, depth 10, threshold 0.01)
+
+| W×H | Mpix | base ms | best ms | speedup | base ms/Mpix | best ms/Mpix |
+|---|---|---|---|---|---|---|
+| 320×240 | 0.077 | 1.253 | 0.890 | 1.41× | 16.3 | 11.6 |
+| 640×480 | 0.307 | 3.069 | 2.013 | 1.52× | 10.0 | 6.6 |
+| 800×600 | 0.480 | 4.139 | 2.860 | 1.45× | 8.6 | 6.0 |
+| 1280×960 | 1.229 | 8.937 | 6.150 | 1.45× | 7.3 | 5.0 |
+| 1600×1200 | 1.920 | 13.247 | 9.133 | 1.45× | 6.9 | 4.8 |
+| 2400×1800 | 4.320 | 27.700 | 19.232 | 1.44× | 6.4 | 4.5 |
+| 3200×2400 | 7.680 | 51.814 | 37.155 | 1.39× | 6.7 | 4.8 |
+
+- **Linear in pixel count above ~1 Mpix** (~6.4–6.9 ms/Mpix baseline, ~4.5–5.0 best).
+- **Small images under-fill the GPU:** 320×240 = 76,800 threads ≈ 2,400 warps, vs 1,280 resident
+  warps on a T4 (40 SMs × 32). Under 2 waves, so the partial last wave and fixed launch cost
+  dominate ⇒ 2.4× the per-pixel cost.
+- Speedup stable at 1.4–1.5×: the optimizations do not depend on resolution.
+
+## 14. Open items
 
 - [x] ncu **Source** page: stalls are ~98 % in the sphere loop; 4 scalar `LDG` per sphere (§3.6).
 - [x] Warning triangles and line-50 stall breakdown (§3.6).

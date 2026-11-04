@@ -1,0 +1,76 @@
+Image check CPU vs GPU (800x600): DIFFERENT: 4/480000 pixels (0.001%), max channel diff 1/255, first at (x=134, y=45)
+(small differences are expected: the GPU fuses a*b+c into FMA, the CPU build may not)
+CPU: starter_raytracer_cpu.cpp, g++ -O2, 1 thread, 800x600
+GPU: src/baseline.cu, block 32x32, 800x600
+5 runs each, times in ms
+                                   mean        min        max
+CPU (process wall time)          47.133     45.640     50.219
+GPU kernel (CUDA events)          0.159      0.150      0.173
+GPU (process wall time)         240.464    231.242    258.689
+speedup CPU / GPU kernel: 296.4x, CPU / GPU process: 0.20x
+Saved to results/compare_cpu.txt
+N 400, threshold 0.01, 3 runs per point, times in ms
+speedup = time(timed@32x32) / time(fma@8x8); step = time(d) - time(d-1) of the last version
+ depth        timed@32x32            fma@8x8   speedup      step
+     0              1.784              1.410     1.27x         -
+     1              2.552              1.866     1.37x     0.456
+     2              3.048              2.240     1.36x     0.374
+     3              3.545              2.552     1.39x     0.312
+     4              3.922              2.721     1.44x     0.169
+     5              4.027              2.799     1.44x     0.078
+     6              4.075              2.808     1.45x     0.009
+     7              4.147              2.872     1.44x     0.064
+     8              4.120              2.846     1.45x    -0.026
+     9              4.108              2.823     1.46x    -0.023
+    10              4.108              2.825     1.45x     0.002
+Images in results/depth_images/
+Saved to results/compare_depth_N400_t0.01.txt
+N 400, threshold 0, 3 runs per point, times in ms
+speedup = time(timed@32x32) / time(fma@8x8); step = time(d) - time(d-1) of the last version
+ depth        timed@32x32            fma@8x8   speedup      step
+     0              1.703              1.290     1.32x         -
+     1              2.387              1.849     1.29x     0.559
+     2              3.071              2.243     1.37x     0.394
+     3              3.618              2.565     1.41x     0.322
+     4              4.096              2.819     1.45x     0.254
+     5              4.481              3.046     1.47x     0.227
+     6              4.846              3.222     1.50x     0.176
+     7              5.183              3.406     1.52x     0.184
+     8              5.467              3.559     1.54x     0.153
+     9              5.671              3.661     1.55x     0.102
+    10              5.825              3.804     1.53x     0.143
+Saved to results/compare_depth_N400_t0.txt
+N 5000, threshold 0.01, 3 runs per point, times in ms
+speedup = time(timed@32x32) / time(fma@8x8); step = time(d) - time(d-1) of the last version
+ depth        timed@32x32            fma@8x8   speedup      step
+     0             26.043             16.725     1.56x         -
+     1             39.560             27.173     1.46x    10.448
+     2             52.029             30.581     1.70x     3.408
+     3             63.110             36.076     1.75x     5.495
+     4             72.291             40.257     1.80x     4.181
+     5             78.788             41.665     1.89x     1.408
+     6             79.590             42.177     1.89x     0.512
+     7             79.252             42.482     1.87x     0.305
+     8             79.517             43.514     1.83x     1.032
+     9             79.863             43.105     1.85x    -0.409
+    10             80.167             42.624     1.88x    -0.481
+Saved to results/compare_depth_N5000_t0.01.txt
+N 400, depth 10, threshold 0.01, 3 runs per point, times in ms
+speedup = time(timed@32x32) / time(fma@8x8); /Mpix = ms per million pixels
+       WxH   Mpix        timed@32x32            fma@8x8   speedup
+   320x240  0.077              1.253              0.890     1.41x
+            /Mpix             16.273             11.558
+   640x480  0.307              3.069              2.013     1.52x
+            /Mpix              9.997              6.557
+   800x600  0.480              4.139              2.860     1.45x
+            /Mpix              8.623              5.958
+  1280x960  1.229              8.937              6.150     1.45x
+            /Mpix              7.272              5.004
+ 1600x1200  1.920             13.247              9.133     1.45x
+            /Mpix              6.899              4.757
+ 2400x1800  4.320             27.700             19.232     1.44x
+            /Mpix              6.412              4.452
+ 3200x2400  7.680             51.814             37.155     1.39x
+            /Mpix              6.747              4.838
+Saved to results/compare_resolution_N400.txt
+
