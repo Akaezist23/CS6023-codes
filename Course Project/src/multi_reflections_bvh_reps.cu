@@ -343,8 +343,8 @@ int main(int argc, char** argv) {
     cudaMalloc(&d_active_scene, sceneSize * sizeof(float4));
     cudaMemcpy(d_active_scene, active_scene.data(), sceneSize * sizeof(float4), cudaMemcpyHostToDevice);
 
-    // Time the kernel with CUDA events: one untimed warm-up launch, then REPS launches,
-    // each timed on its own, all in this process (no per-process start-up in the numbers).
+    // Time the kernel with CUDA events: one untimed warm-up launch, then REPS launches back to
+    // back between a single pair of events (launch overheads between them are included).
     dim3 grid((W + bx - 1) / bx, (H + by - 1) / by), block(bx, by);
     renderKernel<<<grid, block>>>(d_image, d_scene, d_active_scene, d_nodes, sceneSize, W, H, cameraPos, aspect, depth, threshold);
     cudaDeviceSynchronize();
@@ -352,20 +352,16 @@ int main(int argc, char** argv) {
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
-    std::vector<float> times(reps);
-    for (int r = 0; r < reps; ++r) {
-        cudaEventRecord(start);
+    cudaEventRecord(start);
+    for (int r = 0; r < reps; ++r)
         renderKernel<<<grid, block>>>(d_image, d_scene, d_active_scene, d_nodes, sceneSize, W, H, cameraPos, aspect, depth, threshold);
-        cudaEventRecord(stop);
-        cudaEventSynchronize(stop);
-        cudaEventElapsedTime(&times[r], start, stop);
-    }
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+    float totalMs = 0.0f;
+    cudaEventElapsedTime(&totalMs, start, stop);
     cudaEventDestroy(start);
     cudaEventDestroy(stop);
-    float sum = 0.0f, sq = 0.0f, tmin = times[0], tmax = times[0];
-    for (float t : times) { sum += t; sq += t * t; tmin = std::fmin(tmin, t); tmax = std::fmax(tmax, t); }
-    float kernelMs = sum / reps;
-    float stdMs = std::sqrt(std::fmax(0.0f, sq / reps - kernelMs * kernelMs));
+    float kernelMs = totalMs / reps;
     cudaError_t err = cudaGetLastError();
     if (err != cudaSuccess) { fprintf(stderr, "CUDA error: %s\n", cudaGetErrorString(err)); return 1; }
 
@@ -382,8 +378,8 @@ int main(int argc, char** argv) {
     fwrite(image.data(), 1, image.size(), f);
     fclose(f);
     printf("Wrote image.ppm (%dx%d, N %d, depth %d, threshold %g, block %dx%d)\n", W, H, N, depth, threshold, bx, by);
-    printf("Kernel time: %.3f ms\n", kernelMs);   // mean over the timed launches
-    printf("Kernel time stats (%d launches): mean %.3f, std %.3f, min %.3f, max %.3f ms\n", reps, kernelMs, stdMs, tmin, tmax);
+    printf("Kernel time: %.3f ms\n", kernelMs);   // total / REPS
+    printf("Total time for %d launches: %.3f ms\n", reps, totalMs);
     return 0;
 }
 
