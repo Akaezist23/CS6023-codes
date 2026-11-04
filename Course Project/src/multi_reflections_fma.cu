@@ -38,7 +38,11 @@ struct Sphere {
     bool  isFloor;   // if true, we draw a checkerboard instead of a solid color
 };
 
-#include "scene.h"
+// Scene data: scene.h by default; pick another with -DSCENE_FILE='"scene_adversarial.h"'
+#ifndef SCENE_FILE
+#define SCENE_FILE "scene.h"
+#endif
+#include SCENE_FILE
 
 // A ray is a point p(t) = origin + t * dir. This finds where (if anywhere) the
 // ray hits the sphere, returning the nearest distance t in front of the camera,

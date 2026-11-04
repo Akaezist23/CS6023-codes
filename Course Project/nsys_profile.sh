@@ -10,11 +10,14 @@ set -e
 #   Writes $OUT/nsys_report.nsys-rep and $OUT/nsys_stats.txt.
 SRC=${SRC:-multi_reflections_timed.cu}
 [ -f "$SRC" ] || SRC=src/$SRC   # sources live in src/; a bare file name also works
-OUT=${OUT:-profiles}
+SCENE=${SCENE:-}   # e.g. SCENE=scene_adversarial.h (a header in src/); empty = scene.h
+NVFLAGS=${SCENE:+-DSCENE_FILE=\"$SCENE\"}
+SUFFIX=${SCENE:+_$(basename "$SCENE" .h)}
+OUT=${OUT:-profiles$SUFFIX}
 ARGS="$@"
 mkdir -p "$OUT"
 
-nvcc "$SRC" -o multi_reflections -O2 -std=c++11 -lineinfo
+nvcc "$SRC" -o multi_reflections -O2 -std=c++11 -lineinfo $NVFLAGS
 
 # Untimed warm-up (GPU wake-up / clock ramp)
 ./multi_reflections 10 > /dev/null

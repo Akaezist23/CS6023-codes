@@ -19,7 +19,10 @@ DEPTHS=${DEPTHS:-"0 1 2 3 4 5 6 7 8 9 10"}
 THRESHOLD=${1:-0.01}
 SAVE_IMAGES=${SAVE_IMAGES:-0}
 RUNS=3
-OUT=${OUT:-results/compare_depth_N${N}_t${THRESHOLD}.txt}
+SCENE=${SCENE:-}   # e.g. SCENE=scene_adversarial.h (a header in src/); empty = scene.h
+NVFLAGS=${SCENE:+-DSCENE_FILE=\"$SCENE\"}
+SUFFIX=${SCENE:+_$(basename "$SCENE" .h)}
+OUT=${OUT:-results/compare_depth_N${N}_t${THRESHOLD}$SUFFIX.txt}
 mkdir -p results
 
 # Build each version as mr_v<i>; LABELS / BLOCKS hold its column name and block size
@@ -28,7 +31,7 @@ for V in $VERSIONS; do
     SRC=${V%%:*}; BLOCK=32x32; [[ "$V" == *:* ]] && BLOCK=${V#*:}
     [ -f "$SRC" ] || SRC=src/$SRC   # sources live in src/; a bare file name also works
     NAME=$(basename "$SRC" .cu); NAME=${NAME#multi_reflections_}
-    nvcc "$SRC" -o mr_v$i -O2 -std=c++11
+    nvcc "$SRC" -o mr_v$i -O2 -std=c++11 $NVFLAGS
     LABELS+=("$NAME@$BLOCK"); BLOCKS+=("${BLOCK/x/ }")
     ./mr_v$i 10 10 "$THRESHOLD" ${BLOCKS[$i]} > /dev/null   # untimed warm-up
     i=$((i + 1))

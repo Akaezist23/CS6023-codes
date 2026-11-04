@@ -46,7 +46,11 @@ struct __align__(16) bvhNode {
     int count; // 0 if inner node, > 0 to indicate #spheres in leaf node
 };
 
-#include "scene.h"
+// Scene data: scene.h by default; pick another with -DSCENE_FILE='"scene_adversarial.h"'
+#ifndef SCENE_FILE
+#define SCENE_FILE "scene.h"
+#endif
+#include SCENE_FILE
 
 __host__ __device__ float hitBox(bvhNode& box, Vec3 origin, Vec3 inv, float closest) {
     float tNear = 0, tFar = 1e30f;

@@ -40,7 +40,11 @@ struct Sphere {
 };
 
 // The whole scene is just a list of spheres. (The floor is a giant sphere.)
-#include "scene.h"
+// Scene data: scene.h by default; pick another with -DSCENE_FILE='"scene_adversarial.h"'
+#ifndef SCENE_FILE
+#define SCENE_FILE "scene.h"
+#endif
+#include SCENE_FILE
 
 
 

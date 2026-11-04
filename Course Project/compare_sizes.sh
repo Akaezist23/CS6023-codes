@@ -22,17 +22,20 @@ BASE=${BASE:-multi_reflections_timed.cu}
 OPT=${OPT:-multi_reflections_shared.cu}
 [ -f "$BASE" ] || BASE=src/$BASE   # sources live in src/; bare file names also work
 [ -f "$OPT" ] || OPT=src/$OPT
+SCENE=${SCENE:-}   # e.g. SCENE=scene_adversarial.h (a header in src/); empty = scene.h
+NVFLAGS=${SCENE:+-DSCENE_FILE=\"$SCENE\"}
+SUFFIX=${SCENE:+_$(basename "$SCENE" .h)}
 NAME=$(basename "$OPT" .cu); NAME=${NAME#multi_reflections_}
 DEPTH=${1:-10}
 THRESHOLD=${2:-0.01}
 N_VALUES=${N_VALUES:-"400 600 800 1000 1200 1364 1365 1500 1700 1819 1820 2000 2500 3000 3300 3600 3800 4000 5000"}
 RUNS=3
 BLOCK=${BLOCK:-}
-OUT=${OUT:-results/compare_sizes_$NAME${BLOCK:+_${BLOCK/ /x}}.txt}
+OUT=${OUT:-results/compare_sizes_$NAME${BLOCK:+_${BLOCK/ /x}}$SUFFIX.txt}
 mkdir -p results
 
-nvcc "$BASE" -o mr_base -O2 -std=c++11
-nvcc "$OPT"  -o mr_opt  -O2 -std=c++11
+nvcc "$BASE" -o mr_base -O2 -std=c++11 $NVFLAGS
+nvcc "$OPT"  -o mr_opt  -O2 -std=c++11 $NVFLAGS
 
 # Mean kernel time (ms) over RUNS runs, or "fail" if the program exits with an error.
 mean_time() {

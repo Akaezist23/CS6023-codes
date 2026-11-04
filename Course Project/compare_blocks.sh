@@ -13,16 +13,19 @@ set -e
 #   16x16 also changes the warp shape to 16x2 pixels (may change divergence).
 SRC=${SRC:-multi_reflections_split.cu}
 [ -f "$SRC" ] || SRC=src/$SRC   # sources live in src/; a bare file name also works
+SCENE=${SCENE:-}   # e.g. SCENE=scene_adversarial.h (a header in src/); empty = scene.h
+NVFLAGS=${SCENE:+-DSCENE_FILE=\"$SCENE\"}
+SUFFIX=${SCENE:+_$(basename "$SCENE" .h)}
 NAME=$(basename "$SRC" .cu); NAME=${NAME#multi_reflections_}
 DEPTH=${1:-10}
 THRESHOLD=${2:-0.01}
 N_VALUES=${N_VALUES:-"400 3000 5000"}
 SHAPES=${SHAPES:-"32x32 32x16 32x8 32x4 16x16 16x8 8x8"}
 RUNS=3
-OUT=${OUT:-results/compare_blocks_$NAME.txt}
+OUT=${OUT:-results/compare_blocks_$NAME$SUFFIX.txt}
 mkdir -p results
 
-nvcc "$SRC" -o mr_blocks -O2 -std=c++11
+nvcc "$SRC" -o mr_blocks -O2 -std=c++11 $NVFLAGS
 
 # Mean kernel time (ms) over RUNS runs, or "fail" if the program exits with an error.
 mean_time() {

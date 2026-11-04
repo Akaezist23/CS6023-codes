@@ -16,7 +16,10 @@ RESOLUTIONS=${RESOLUTIONS:-"320x240 640x480 800x600 1280x960 1600x1200 2400x1800
 DEPTH=${1:-10}
 THRESHOLD=${2:-0.01}
 RUNS=3
-OUT=${OUT:-results/compare_resolution_N${N}.txt}
+SCENE=${SCENE:-}   # e.g. SCENE=scene_adversarial.h (a header in src/); empty = scene.h
+NVFLAGS=${SCENE:+-DSCENE_FILE=\"$SCENE\"}
+SUFFIX=${SCENE:+_$(basename "$SCENE" .h)}
+OUT=${OUT:-results/compare_resolution_N${N}$SUFFIX.txt}
 mkdir -p results
 
 # Build each version as mr_v<i>; LABELS / BLOCKS hold its column name and block size
@@ -25,7 +28,7 @@ for V in $VERSIONS; do
     SRC=${V%%:*}; BLOCK=32x32; [[ "$V" == *:* ]] && BLOCK=${V#*:}
     [ -f "$SRC" ] || SRC=src/$SRC   # sources live in src/; a bare file name also works
     NAME=$(basename "$SRC" .cu); NAME=${NAME#multi_reflections_}
-    nvcc "$SRC" -o mr_v$i -O2 -std=c++11
+    nvcc "$SRC" -o mr_v$i -O2 -std=c++11 $NVFLAGS
     LABELS+=("$NAME@$BLOCK"); BLOCKS+=("${BLOCK/x/ }")
     ./mr_v$i 10 "$DEPTH" "$THRESHOLD" ${BLOCKS[$i]} > /dev/null   # untimed warm-up
     i=$((i + 1))

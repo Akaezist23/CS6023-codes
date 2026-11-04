@@ -10,12 +10,15 @@ set -e
 #   SRC=multi_reflections_shared.cu OUT=profiles_shared bash profile.sh 400
 SRC=${SRC:-multi_reflections_timed.cu}
 [ -f "$SRC" ] || SRC=src/$SRC   # sources live in src/; a bare file name also works
+SCENE=${SCENE:-}   # e.g. SCENE=scene_adversarial.h (a header in src/); empty = scene.h
+NVFLAGS=${SCENE:+-DSCENE_FILE=\"$SCENE\"}
+SUFFIX=${SCENE:+_$(basename "$SCENE" .h)}
 ARGS="$@"
-OUT=${OUT:-profiles}
+OUT=${OUT:-profiles$SUFFIX}
 mkdir -p "$OUT"
 
 # Build with -lineinfo so ncu can map stalls / memory traffic back to source lines.
-nvcc "$SRC" -o multi_reflections -O2 -std=c++11 -lineinfo
+nvcc "$SRC" -o multi_reflections -O2 -std=c++11 -lineinfo $NVFLAGS
 
 # Untimed warm-up (GPU wake-up / clock ramp), so the nsys kernel time is not inflated.
 # ncu locks the clocks itself, so it does not need this.
