@@ -48,6 +48,26 @@ struct __align__(16) bvhNode {
 
 #include "scene.h"
 
+__host__ __device__ float hitBox(bvhNode& box, Vec3 origin, Vec3 inv, float closest) {
+    float tNear = 0, tFar = 1e30f;
+    float t1, t2;
+    t1 = (box.minx - origin.x) * inv.x; 
+    t2 = (box.maxx - origin.x) * inv.x;
+    tNear = fmax(tNear, fmin(t1, t2)); 
+    tFar = fmin(tFar, fmax(t1, t2));
+
+    t1 = (box.miny - origin.y) * inv.y; 
+    t2 = (box.maxy - origin.y) * inv.y;
+    tNear = fmax(tNear, fmin(t1, t2)); 
+    tFar = fmin(tFar, fmax(t1, t2));
+
+    t1 = (box.minz - origin.z) * inv.z; 
+    t2 = (box.maxz - origin.z) * inv.z;
+    tNear = fmax(tNear, fmin(t1, t2)); 
+    tFar = fmin(tFar, fmax(t1, t2));
+    return (tNear <= tFar && tFar >= 0 && tNear < closest) ? tNear : -1.0f;
+}
+
 __device__ float hitSphere(const float4& s, Vec3 origin, Vec3 dir) {
     Vec3  center(s.x, s.y, s.z);
     float radius2 = s.w;
@@ -62,7 +82,7 @@ __device__ float hitSphere(const float4& s, Vec3 origin, Vec3 dir) {
 }
 
 // Find the closest sphere the ray hits. Returns its index (or -1) and the distance.
-__device__ int closestHit(Vec3 origin, Vec3 dir, float4* active_scene, int scene_size , float& tHit, bool shadow = false) {
+__device__ int closestHitLinear(Vec3 origin, Vec3 dir, float4* active_scene, int scene_size , float& tHit, bool shadow = false) {
     int   best = -1;
     float closest = 1e30f;
     for (int i = 0; i < scene_size; i++) {
@@ -74,8 +94,61 @@ __device__ int closestHit(Vec3 origin, Vec3 dir, float4* active_scene, int scene
     return best;
 }
 
+__device__ int closestHit(Vec3 origin, Vec3 dir, float4* active_scene, bvhNode* nodes, float& tHit, bool shadow = false) {
+    int best = -1;
+    float closest = 1e30f;
+    float t = hitSphere(active_scene[0], origin, dir);
+    if (t > 0) {
+        if (shadow) return 0;
+        closest = t;
+        best = 0;
+    }
+    Vec3 inv(1/dir.x, 1/dir.y, 1/dir.z);
+    int stack[32];
+    int sp = 0;
+    if (hitBox(nodes[0], origin, inv, closest) >= 0) stack[sp++] = 0;
+    while (sp > 0) {
+        int n = stack[--sp];
+        bvhNode node = nodes[n];
+        if (hitBox(node, origin, inv, closest) < 0) continue;
+        if (node.count > 0) {
+            for (int i = node.leftOrFirst; i < node.leftOrFirst + node.count; ++i) {
+                t = hitSphere(active_scene[i], origin, dir);
+                if (t > 0) {
+                    if (shadow) return i;
+                    if (t < closest) {
+                        closest = t;
+                        best = i;
+                    }
+                }
+            }
+        }
+        else {
+            int L = node.leftOrFirst;
+            int R = L + 1;
+            float tL = hitBox(nodes[L], origin, inv, closest);
+            float tR = hitBox(nodes[R], origin, inv, closest);
+            if (tL >= 0 && tR >= 0) {
+                if (tL < tR) {
+                    stack[sp++] = R;
+                    stack[sp++] = L;
+                }
+                else {
+                    stack[sp++] = L;
+                    stack[sp++] = R;
+                }
+            }
+            else if (tL >= 0) stack[sp++] = L;
+            else if (tR >= 0) stack[sp++] = R;
+        }
+    }
+
+    tHit = closest;
+    return best;
+}
+
 // Compute the color seen along one ray.
-__device__ Vec3 rayColor(Vec3 origin, Vec3 dir, Sphere* scene, float4* active_scene, int scene_size, int depth = 0, float threshold = 0.01f) {
+__device__ Vec3 rayColor(Vec3 origin, Vec3 dir, Sphere* scene, float4* active_scene, bvhNode* nodes, int scene_size, int depth = 0, float threshold = 0.01f) {
     // TRY IT: move the light around and see how shading/shadows change.
     // x = right, y = up, z = toward the camera.
     Vec3  lightPos(4, 6, 2);
@@ -87,7 +160,7 @@ __device__ Vec3 rayColor(Vec3 origin, Vec3 dir, Sphere* scene, float4* active_sc
     float curr = 1;
     do {
         depth--;
-        hit = closestHit(origin, dir, active_scene, scene_size, tHit);
+        hit = closestHit(origin, dir, active_scene, nodes, tHit);
     
         if (hit < 0) {
             // Miss: draw a simple sky gradient (white near horizon -> blue up top).
@@ -112,7 +185,7 @@ __device__ Vec3 rayColor(Vec3 origin, Vec3 dir, Sphere* scene, float4* active_sc
         
         // Hard shadow: shoot a ray toward the light; if it hits something, we're shadowed.
         float shadowT;
-        int   blocked = closestHit(p + n * 0.001f, toLight, active_scene, scene_size, shadowT, true);
+        int   blocked = closestHit(p + n * 0.001f, toLight, active_scene, nodes, shadowT, true);
         float shade = (blocked >= 0) ? 0.3f : 1.0f;
         
         float brightness = 0.15f + diffuse * shade;   // 0.15 = a little ambient light
@@ -127,7 +200,7 @@ __device__ Vec3 rayColor(Vec3 origin, Vec3 dir, Sphere* scene, float4* active_sc
     return color;
 }
 
-__global__ void renderKernel(unsigned char* image, Sphere* scene, float4* active_scene, int scene_size , int W, int H, Vec3 cameraPos, float aspect, int depth, float threshold) {
+__global__ void renderKernel(unsigned char* image, Sphere* scene, float4* active_scene, bvhNode* nodes, int scene_size , int W, int H, Vec3 cameraPos, float aspect, int depth, float threshold) {
     int px = blockIdx.x * blockDim.x + threadIdx.x;
     int py = blockIdx.y * blockDim.y + threadIdx.y;
 
@@ -138,7 +211,7 @@ __global__ void renderKernel(unsigned char* image, Sphere* scene, float4* active
     float v = (1.0f - 2.0f * (py + 0.5f) / H);
     Vec3 dir = normalize(Vec3(u, v, -1.5f));
 
-    Vec3 color = rayColor(cameraPos, dir, scene, active_scene, scene_size, depth, threshold);
+    Vec3 color = rayColor(cameraPos, dir, scene, active_scene, nodes, scene_size, depth, threshold);
 
     // Store the color as 3 bytes (clamp to [0,1] first).
     int idx = (py * W + px) * 3;
@@ -244,11 +317,14 @@ int main(int argc, char** argv) {
     for (int i = 0; i < sceneSize; ++i) bvh_scene[i] = scene[idx[i]];
 
     Sphere* d_scene;
+    bvhNode* d_nodes;
     float4* d_active_scene;
     unsigned char* d_image;
     cudaMalloc(&d_image, image.size());
     cudaMalloc(&d_scene, sceneSize * sizeof(Sphere));
+    cudaMalloc(&d_nodes, usedNodes * sizeof(bvhNode));
     cudaMemcpy(d_scene, bvh_scene.data(), sceneSize * sizeof(Sphere), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_nodes, nodes.data(), usedNodes * sizeof(bvhNode), cudaMemcpyHostToDevice);
     float aspect = (float)W / H;
 
     std::vector<float4> active_scene(sceneSize);
@@ -264,7 +340,9 @@ int main(int argc, char** argv) {
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
     cudaEventRecord(start);
-    renderKernel<<<dim3((W + bx - 1) / bx, (H + by - 1) / by), dim3(bx, by)>>>(d_image, d_scene, d_active_scene, sceneSize, W, H, cameraPos, aspect, depth, threshold);
+
+    renderKernel<<<dim3((W + bx - 1) / bx, (H + by - 1) / by), dim3(bx, by)>>>(d_image, d_scene, d_active_scene, d_nodes, sceneSize, W, H, cameraPos, aspect, depth, threshold);
+
     cudaEventRecord(stop);
     cudaEventSynchronize(stop);
     float kernelMs = 0.0f;
@@ -277,6 +355,7 @@ int main(int argc, char** argv) {
     cudaMemcpy(image.data(), d_image, image.size(), cudaMemcpyDeviceToHost);
     cudaFree(d_image);
     cudaFree(d_scene);
+    cudaFree(d_nodes);
     cudaFree(d_active_scene);
 
 
