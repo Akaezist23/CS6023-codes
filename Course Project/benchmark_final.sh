@@ -12,17 +12,19 @@ set -e
 #     depth       time vs reflection depth, N=400 (t=0.01, t=0), N=5000      ~10 min  (main scene)
 #     resolution  time vs image size, N=400                                  ~5 min   (main scene)
 #     all         every flat version interleaved, N=400 and N=5000           ~5 min   per scene
-#     sizes       N sweeps: shared/split vs baseline, fma vs split, fp16 vs fma  ~25 min per scene
+#     sizes       N sweeps: shared/split vs baseline, fma vs split          ~20 min per scene
 #     blocks      block-shape sweep of the split version                     ~5 min   per scene
 #   SCENES selects the scenes for the per-scene stages (default: all three; depth and
 #   resolution always use the main scene only).
+#   FP16=1 adds the fp16 version (left out for now): the fp16-vs-fma sweep, and fp16 in "all"
+#   (add it to FLAT by hand or via VERSIONS in compare_all.sh).
 #   Example: STAGES="all sizes" SCENES="kaushik_scene.h" bash benchmark_final.sh
 STAGES=${STAGES:-"cpu depth resolution all sizes blocks"}
 SCENES=${SCENES:-"scene.h scene_adversarial.h kaushik_scene.h"}
 export RUNS=${RUNS:-20}   # runs per data point
 DEPTH=10
 THRESHOLD=0.01
-FLAT="timed:32x32 split:32x32 split:8x8 2sphere:8x8 prefetch:8x8 fma:8x8 fp16:8x8"
+FLAT="timed:32x32 split:32x32 split:8x8 2sphere:8x8 prefetch:8x8 fma:8x8"   # fp16: later, see FP16=1
 SMALL_N="10 50 100 200 400 600 800 1000 1200 1364 1500 1700 1819 1820"   # shared fits up to 1,819
 LARGE_N="400 1000 1500 1819 2000 2500 3000 3300 3600 3800 4000 4500 5000"
 MAIN=results/final/scene
@@ -67,9 +69,11 @@ for S in $SCENES; do
         log "$S: fma vs split, 8x8"
         SCENE=$S N_VALUES="$LARGE_N" BASE=multi_reflections_split.cu OPT=multi_reflections_fma.cu BLOCK="8 8" \
             OUT=$D/sizes_fma_vs_split_8x8.txt bash compare_sizes.sh $DEPTH $THRESHOLD
+        if [ "${FP16:-0}" = 1 ]; then
         log "$S: fp16 vs fma, 8x8"
         SCENE=$S N_VALUES="$LARGE_N" BASE=multi_reflections_fma.cu OPT=multi_reflections_fp16.cu BLOCK="8 8" \
             OUT=$D/sizes_fp16_vs_fma_8x8.txt bash compare_sizes.sh $DEPTH $THRESHOLD
+        fi
     fi
     if has blocks; then
         log "$S: block shapes, split"

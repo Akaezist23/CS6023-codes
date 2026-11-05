@@ -12,8 +12,8 @@ set -e
 #   Download with:  zip -qr profiles_final.zip profiles_final
 SCENES=${SCENES:-"scene.h scene_adversarial.h kaushik_scene.h"}
 # version:block:N   (shared only fits 1,819 spheres, so it is profiled at N=400 with the baseline)
-MAIN_VERSIONS=${MAIN_VERSIONS:-"timed:32x32:400 shared:32x32:400 timed:32x32:5000 split:32x32:5000 split:8x8:5000 2sphere:8x8:5000 prefetch:8x8:5000 fma:8x8:5000 fp16:8x8:5000"}
-OTHER_VERSIONS=${OTHER_VERSIONS:-"timed:32x32:5000 split:32x32:5000 split:8x8:5000 fma:8x8:5000 fp16:8x8:5000"}
+MAIN_VERSIONS=${MAIN_VERSIONS:-"timed:32x32:400 shared:32x32:400 timed:32x32:5000 split:32x32:5000 split:8x8:5000 2sphere:8x8:5000 prefetch:8x8:5000 fma:8x8:5000"}   # fp16:8x8:5000 later
+OTHER_VERSIONS=${OTHER_VERSIONS:-"timed:32x32:5000 split:32x32:5000 split:8x8:5000 fma:8x8:5000"}   # fp16:8x8:5000 later
 
 for S in $SCENES; do
     NAME=$(basename "$S" .h)
