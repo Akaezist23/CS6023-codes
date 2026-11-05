@@ -931,7 +931,43 @@ Starter scene (3 spheres + floor, no reflections), 800×600; `starter_raytracer_
   dominate ⇒ 2.4× the per-pixel cost.
 - Speedup stable at 1.4–1.5×: the optimizations do not depend on resolution.
 
-## 14. Open items
+## 14. Compute- or memory-bound? Classification of the pre-BVH profiles
+
+All at depth 10, threshold 0.01, ncu's locked 585 MHz. FP32 peak at that clock: 40 SMs × 64 × 2 ×
+0.585 GHz ≈ 2,995 GFLOP/s. GFLOP/s = (fadd + fmul + 2·ffma) / duration.
+
+| Profile | Duration | SM % | Memory % (L1/TEX %) | L2 % | DRAM % | Top pipe | Issue slots busy | No eligible | GFLOP/s (% of peak) |
+|---|---|---|---|---|---|---|---|---|---|
+| baseline, N=400, 32×32 | 10.75 ms | 66.1 | 66.1 (72.4) | 0.04 | 0.06 | FMA 56.5 % | 60.8 % | 29.7 % | 811 (27 %) |
+| shared, N=400, 32×32 | 10.02 ms | 61.0 | 45.4 (52.7) | 0.03 | 0.06 | FMA 60.7 % | 61.0 % | 29.7 % | 870 (29 %) |
+| baseline, N=5000, 32×32 | 184.3 ms | 51.5 | 51.5 (55.5) | 0.32 | 0.00 | FMA 43.6 % | 46.8 % | 45.5 % | 592 (20 %) |
+| split, N=5000, 32×32 | 154.7 ms | 52.3 | 24.0 (48.1) | 0.16 | 0.01 | FMA 52.3 % | 50.4 % | 42.1 % | 705 (24 %) |
+| split, N=5000, 8×8 | 112.6 ms | 63.5 | 32.8 (65.5) | 0.58 | 0.01 | FMA 63.5 % | 61.1 % | 31.4 % | 969 (32 %) |
+| fma, N=5000, 8×8 | 104.6 ms | 59.7 | 35.6 (71.2) | 0.45 | 0.02 | FMA 56.3 % | 59.7 % | 33.8 % | 878 (29 %) |
+
+*Arithmetic intensity from the counters* (FLOP per byte; ridges at 585 MHz ≈ 1 for L1, ≈ 3.5 for L2,
+≈ 9.4 for DRAM, §4.2): every version is far right of the L2 and DRAM ridges (L2: ~190–2,500,
+DRAM: ~3,000–40,000) and right of the L1 ridge by `l1tex__t_bytes` (3–14). ncu's own L1 dot sits
+at ≈ 0.76–1, right at the L1 ridge (§10: it counts bytes per thread, not per sector).
+
+**Verdict: none of them is compute-bound or memory-bound.** No unit is near saturation: the
+highest is 72 % (L1/TEX), the FP32 pipe peaks at 64 %, and achieved FLOP/s are 20–32 % of peak. ncu's
+own rule is "below 60 % ⇒ latency issues". All six are **latency-bound**: warps are stalled
+(30–46 % of cycles have no eligible warp) on memory latency (long_scoreboard), dependency chains
+(wait) and the FMA pipe in bursts (math_pipe_throttle). What changed between versions is which side they lean to:
+- **baseline N=400:** balanced (SM = memory = 66 %; ncu: "Compute and Memory are well-balanced").
+  The scene is L1-resident (hit rate 99.9 %); the 4 scalar loads per sphere keep the LSU / L1 busy.
+- **baseline N=5000:** everything drops to ~50 % and no-eligible rises to 45 %: memory *latency*
+  (L1 misses to L2, long_scoreboard + lg_throttle), not bandwidth (L2 0.3 %, DRAM 0 %).
+- **split:** memory % halves (24 %), SM unchanged: leaning to compute, still latency-limited.
+- **8×8 blocks:** SM 64 %, FMA pipe 64 %, ncu: "Compute is more heavily utilized than Memory".
+  The most compute-leaning version, still with 31 % idle issue cycles.
+- **fma:** fewer FP instructions, so the FMA pipe drops to 56 % and **L1/TEX (71 %) becomes the single
+  busiest unit**. Each remaining sphere test is now a larger share of load instructions.
+
+DRAM is irrelevant in all versions (≤ 0.06 %): the scene (≤ 180 KB) lives in L2 after the first touch.
+
+## 15. Open items
 
 - [x] ncu **Source** page: stalls are ~98 % in the sphere loop; 4 scalar `LDG` per sphere (§3.6).
 - [x] Warning triangles and line-50 stall breakdown (§3.6).
