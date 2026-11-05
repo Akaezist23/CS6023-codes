@@ -1,0 +1,9 @@
+Image check (N=400): IDENTICAL (800x600)
+LDG.E.128 instructions: baseline 23, bvh_bare 15
+baseline = src/multi_reflections_bvh.cu, bvh_bare = src/multi_reflections_bvh_bare.cu, block 8x8
+depth 10, threshold 0.01, 20 runs per N, times in ms
+ms/sph = (time - previous time) / (N - previous N), i.e. cost of each extra sphere (only for steps >= 50)
+     N   baseline   bvh_bare   speedup    base ms/sph bvh_bare ms/sph
+   400      0.697      0.695     1.00x              -              -
+  1000      0.818      0.818     1.00x        0.00020        0.00020
+  5000      1.281      1.418     0.90x        0.00012        0.00015

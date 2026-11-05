@@ -39,6 +39,7 @@ ncu --set full --import-source yes --force-overwrite \
 ncu --import "$OUT/ncu_report.ncu-rep" --page details \
     --section SpeedOfLight \
     --section ComputeWorkloadAnalysis \
+    --section InstructionStats \
     --section MemoryWorkloadAnalysis \
     --section LaunchStats \
     --section Occupancy \

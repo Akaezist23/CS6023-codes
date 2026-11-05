@@ -967,7 +967,135 @@ own rule is "below 60 % ⇒ latency issues". All six are **latency-bound**: warp
 
 DRAM is irrelevant in all versions (≤ 0.06 %): the scene (≤ 180 KB) lives in L2 after the first touch.
 
-## 15. Open items
+## 15. BVH (`multi_reflections_bvh_bare.cu`, `multi_reflections_bvh.cu`)
+
+Built on the CPU (object-median split on the longest axis, ≤ 4 spheres per leaf, floor kept out
+of the tree and tested separately, spheres reordered into leaf order). Traversed on the GPU with a
+per-thread stack (`int stack[32]`).
+- **bare:** pop → box test → leaf: test spheres / inner: push both children (fixed order, no test).
+- **full:** + nearer child first, + skip boxes whose entry distance is beyond `closest`.
+
+### 15.1 Timing method: one launch per process vs back-to-back launches in one process
+
+`multi_reflections_bvh_reps.cu` = the BVH with one untimed warm-up launch, then 20 launches back to
+back between one pair of events, time / 20. Same kernel (image IDENTICAL).
+`results/compare_timing_method_bvh.txt` (threshold 0.001, 8×8, 20 runs):
+
+| N | one launch per process | 20 launches in-process | difference |
+|---|---|---|---|
+| 4 | 0.209 | 0.066 | 0.143 |
+| 10 | 0.271 | 0.132 | 0.139 |
+| 100 | 0.528 | 0.368 | 0.160 |
+| 500 | 0.810 | 0.663 | 0.147 |
+| 1000 | 0.941 | 0.795 | 0.146 |
+| 5000 | 1.439 | 1.318 | 0.121 |
+
+- Single-launch timing includes a roughly **constant ~0.12–0.16 ms** first-launch overhead per process.
+  Large for BVH-scale kernels (3× at N=4, 9 % at N=5000), negligible for the flat versions (< 0.4 %).
+- For comparisons involving the BVH, both sides should use the in-process method.
+- **Cause, from nsys** (`profiles_bvh_bare_8x8`, kernel tooltip): launch latency of the first launch
+  = **173 µs** (CPU `cudaLaunchKernel` to GPU kernel start), including lazy loading of the kernel code
+  (`cuLibraryLoadData`, 117 µs). The start event fires on the GPU immediately, so a single-launch
+  measurement includes this gap. In the in-process version, the warm-up launch absorbs it.
+- Same tooltip: "Local Memory Per Thread 0 B" (no compiler-assigned lmem / spills) but "Local Memory
+  Total 28.8 MB" = per-thread call stack reservation (≈ 704 B × 40 SMs × 1,024 threads). The traversal
+  `stack[32]` most likely sits in that stack frame. Check: `nvcc -Xptxas -v` → "bytes stack frame".
+
+### 15.2 Bare BVH profile (N=5000, depth 10, threshold 0.01, 8×8; `profiles_bvh_bare_8x8`)
+
+| Metric | fma 8×8 (flat, §12) | bare BVH 8×8 |
+|---|---|---|
+| Duration (ncu, 585 MHz) | 104.6 ms | **3.45 ms** (~30×) |
+| FP32 instructions (fadd + fmul + ffma) | 57.4 G | 0.68 G |
+| GFLOP/s (% of FP32 peak) | 878 (29 %) | 225 (7.5 %) |
+| Top pipe | FMA 56 % | **ALU 43 %** |
+| SM % / L1/TEX % / L2 % / DRAM % | 59.7 / 71.2 / 0.45 / 0.02 | 49.3 / **75.6 / 16.7 / 2.1** |
+| L1 hit rate / L2 hit rate | 95.0 % / – | 90.9 % / 99.2 % |
+| DRAM read / write | 4.2 / 1.1 MB | 4.4 / **19.1 MB** |
+| Active threads per warp | 22.7 | **14.8** |
+| Eligible warps per scheduler / no eligible | 1.7 / 33.8 % | 1.2 / 42.0 % |
+| Cycles per issued instruction | 10.15 | 10.76 |
+| Registers per thread | 43 | **55** (block limit 18 > 16, still 100 % theoretical) |
+| Achieved occupancy | 81.4 % | 74.2 % |
+
+- **Work changed character:** box tests (`fmin`/`fmax`) and stack/index arithmetic run on the ALU
+  pipe, which replaces FMA as the busiest pipe. FP32 instruction count drops ~85×.
+- **Divergence much higher** (14.8 / 32 active threads): each thread follows its own path through the tree,
+  where the flat loop kept all threads on the same sphere.
+- **More memory traffic per unit of work:** L2 0.45 → 16.7 %, DRAM writes 19 MB (image ≈ 1.4 MB).
+  Likely the per-thread `stack[32]`: dynamically indexed, so it lives in **local memory** (L1/L2/DRAM
+  backed). ncu's "spilling requests = 0" does not count local arrays. To confirm: Memory Workload
+  Analysis → Local rows.
+- **Classification:** still latency-bound (no unit near saturation; highest L1/TEX 76 %; ncu:
+  "Latency Issue"), but **memory-leaning at L1**.
+- *ncu-ui SoL vs fma:* L2 +3,640 %, DRAM +13,289 % are relative changes of tiny percentages. L2 bytes
+  are about equal (406 vs 403 MB), squeezed into 1/30 of the time. Throughput % is a rate. Per unit
+  of work the BVH is far more memory-hungry: 85× fewer FP instructions, same L2 bytes.
+- *ncu-ui hierarchical roofline* (read off the chart, approximate):
+
+  | Dot | fma | bare BVH |
+  |---|---|---|
+  | L1 | ≈ 0.8, 0.88 TFLOP/s | **≈ 0.25**, 0.23 TFLOP/s |
+  | L2 | ≈ 226 | ≈ 11 |
+  | DRAM | ≈ 17,000 | ≈ 33 |
+
+  - Only the **L1 dot** is left of its ridge (~1), at ~30 % of the L1 roof. L2 and DRAM dots stay
+    right of their ridges.
+  - ncu's L2 dot implies ~71 MB of L2 traffic (0.78 GFLOP / 11), vs `lts__t_bytes` = 403 MB. For fma
+    the two agreed (406 MB ↔ 226). So ~330 MB of the BVH's L2 traffic is not counted by the
+    roofline. Guess: local memory (traversal stack). Check: Memory Workload Analysis memory chart.
+    (An earlier estimate of L2 ≈ 1.9 from `lts__t_bytes` was therefore not what ncu plots.)
+  - DRAM dot consistent with counters: 0.78 GFLOP / 33 ≈ 23.6 MB = 4.4 MB read + 19.1 MB write.
+  - **All BVH dots are lower** (8 % of FP32 peak) although the kernel is 30× faster: it needs ~85×
+    fewer FLOPs, and its work (box tests via `fmin`/`fmax`, stack, branches) is not counted as FLOPs.
+    A FLOP roofline compares implementations of the same algorithm; across algorithms, time to
+    solution is the measure.
+### 15.3 Bare vs full BVH (`results/compare_sizes_bvh_bare_vs_bvh.txt`, threshold 0.01, 8×8, 20 runs, one launch per process)
+
+| N | full | bare | full ÷ bare |
+|---|---|---|---|
+| 400 | 0.697 | 0.695 | 1.00× |
+| 1000 | 0.818 | 0.818 | 1.00× |
+| 5000 | 1.281 | 1.418 | full 10 % faster (~12 % without the ~0.14 ms per-process overhead) |
+
+Image IDENTICAL. Nearer-child-first + `tNear < closest` pruning add nothing up to N=1000 and ~10 % at
+N=5000. Almost all of the BVH's gain comes from the tree itself. Plausible reason (not checked):
+shadow rays, about half of all rays, stop at the first hit, so ordering and pruning do not help them.
+
+### 15.4 Full BVH profile vs bare (N=5000, depth 10, threshold 0.01, 8×8; `profiles_bvh_8x8`)
+
+| Metric | bare | full |
+|---|---|---|
+| Duration (ncu) | 3.45 ms | **3.00 ms** (1.15×) |
+| Instructions (IPC × SM active cycles, per SM) | ~3.94 M | ~3.97 M (same) |
+| IPC / issue slots busy | 2.20 / 49.3 % | 2.40 / 55.9 % |
+| FADD / FMUL / FFMA | 290 / 287 / 101 M | 358 / 357 / 88 M |
+| L1 bytes / L2 bytes / DRAM write | 1.10 GB / 403 MB / 19.1 MB | **750 MB / 184 MB / 2.8 MB** |
+| L1/TEX % / L2 % / L1 hit rate | 75.6 / 16.7 / 90.9 % | **84.9** / 9.3 / 96.4 % |
+| Active threads per warp | 14.8 | 16.1 |
+| Eligible warps / no eligible | 1.21 / 42.0 % | 1.47 / 37.9 % |
+| Top pipe | ALU 42.7 % | ALU 50.7 % |
+| Registers per thread | 55 | **63** |
+| Achieved occupancy | 74.2 % | 76.7 % |
+
+- **Same instruction count, different mix.** Box-test arithmetic (FADD/FMUL from `(min − o) · inv`) is up
+  ~23 %: the full version tests each child before pushing it *and* again when popping it. Sphere-test
+  arithmetic (FFMA) is down ~12 %: pruning skips leaves beyond `closest`. The two roughly cancel; the
+  gain is **fewer stalls** (IPC 2.20 → 2.40), not less work.
+- **Less memory traffic:** L2 −54 %, DRAM writes 19.1 → 2.8 MB (image ≈ 1.4 MB). Bare pushes both
+  children of every visited inner node, full only the children whose box is hit, so fewer stack stores.
+  Fits the local-memory-stack hypothesis (§15.2), not yet confirmed on the Memory Workload Analysis page.
+- **Registers 63:** at 8×8, 65,536 / (63 × 64) = 16 blocks per SM, exactly the 16-block cap. One more
+  register step above 64 would start cutting occupancy.
+- **Classification:** still latency-bound, but L1/TEX at 85 % is the highest unit utilization of any
+  version so far. FLOP/byte: L1 ≈ 1.19, L2 ≈ 4.8, just right of the L1 (~1) and L2 (~3.5) ridges
+  (bare was left of both).
+- **Wasted work left:** the second box test per node. Storing `tNear` on the stack and comparing it with
+  `closest` at pop would remove it.
+- nsys single-run times (bare 3.41 ms, full 1.67 ms) are not usable: bare's nsys time ≈ its ncu time
+  at 585 MHz, which can't be right at boost clock. Single unwarmed launches; use the timing sweep.
+
+## 16. Open items
 
 - [x] ncu **Source** page: stalls are ~98 % in the sphere loop; 4 scalar `LDG` per sphere (§3.6).
 - [x] Warning triangles and line-50 stall breakdown (§3.6).
