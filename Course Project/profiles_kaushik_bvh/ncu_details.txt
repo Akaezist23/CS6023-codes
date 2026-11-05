@@ -1,0 +1,150 @@
+[4854] multi_reflections@127.0.0.1
+  renderKernel(unsigned char *, Sphere *, float4 *, bvhNode *, int, int, int, Vec3, float, int, float) (100, 75, 1)x(8, 8, 1), Context 1, Stream 7, Device 0, CC 7.5
+    Section: GPU Speed Of Light Throughput
+    ----------------------- ----------- ------------
+    Metric Name             Metric Unit Metric Value
+    ----------------------- ----------- ------------
+    DRAM Frequency                  Ghz         5.03
+    SM Frequency                    Mhz       584.99
+    Elapsed Cycles                cycle    2,840,511
+    Memory Throughput                 %        44.42
+    DRAM Throughput                   %         0.57
+    Duration                         ms         4.86
+    L1/TEX Cache Throughput           %        88.80
+    L2 Cache Throughput               %        12.05
+    SM Active Cycles              cycle 2,730,486.40
+    Compute (SM) Throughput           %        50.68
+    ----------------------- ----------- ------------
+
+    OPT   This workload exhibits low compute throughput and memory bandwidth utilization relative to the peak           
+          performance of this device. Achieved compute throughput and/or memory bandwidth below 60.0% of peak           
+          typically indicate latency issues. Look at Scheduler Statistics and Warp State Statistics for potential       
+          reasons.                                                                                                      
+
+    Section: Compute Workload Analysis
+    -------------------- ----------- ------------
+    Metric Name          Metric Unit Metric Value
+    -------------------- ----------- ------------
+    Executed Ipc Active   inst/cycle         2.11
+    Executed Ipc Elapsed  inst/cycle         2.02
+    Issue Slots Busy               %        50.68
+    Issued Ipc Active     inst/cycle         2.11
+    SM Busy                        %        50.68
+    -------------------- ----------- ------------
+
+    INF   ALU is the highest-utilized pipeline (45.8%) based on elapsed cycles in the workload, taking into account the 
+          rates of its different instructions. It executes integer and logic operations. It is well-utilized, but       
+          should not be a bottleneck.                                                                                   
+
+    Section: Memory Workload Analysis
+    -------------------------------------- ----------- ------------
+    Metric Name                            Metric Unit Metric Value
+    -------------------------------------- ----------- ------------
+    Local Memory Spilling Requests                                0
+    Local Memory Spilling Request Overhead           %            0
+    Memory Throughput                          Gbyte/s         1.83
+    Mem Busy                                         %        44.42
+    Max Bandwidth                                    %        35.94
+    L1/TEX Hit Rate                                  %        90.97
+    L2 Hit Rate                                      %       100.01
+    Mem Pipes Busy                                   %        28.81
+    -------------------------------------- ----------- ------------
+
+    Section: Scheduler Statistics
+    ---------------------------- ----------- ------------
+    Metric Name                  Metric Unit Metric Value
+    ---------------------------- ----------- ------------
+    One or More Eligible                   %        53.88
+    Issued Warp Per Scheduler                        0.54
+    No Eligible                            %        46.12
+    Active Warps Per Scheduler          warp         6.32
+    Eligible Warps Per Scheduler        warp         1.16
+    ---------------------------- ----------- ------------
+
+    OPT   Est. Local Speedup: 46.12%                                                                                    
+          Every scheduler is capable of issuing one instruction per cycle, but for this workload each scheduler only    
+          issues an instruction every 1.9 cycles. This might leave hardware resources underutilized and may lead to     
+          less optimal performance. Out of the maximum of 8 warps per scheduler, this workload allocates an average of  
+          6.32 active warps per scheduler, but only an average of 1.16 warps were eligible per cycle. Eligible warps    
+          are the subset of active warps that are ready to issue their next instruction. Every cycle with no eligible   
+          warp results in no instruction being issued and the issue slot remains unused. To increase the number of      
+          eligible warps, reduce the time the active warps are stalled by inspecting the top stall reasons on the Warp  
+          State Statistics and Source Counters sections.                                                                
+
+    Section: Warp State Statistics
+    ---------------------------------------- ----------- ------------
+    Metric Name                              Metric Unit Metric Value
+    ---------------------------------------- ----------- ------------
+    Warp Cycles Per Issued Instruction             cycle        11.73
+    Warp Cycles Per Executed Instruction           cycle        11.74
+    Avg. Active Threads Per Warp                                12.12
+    Avg. Not Predicated Off Threads Per Warp                    11.59
+    ---------------------------------------- ----------- ------------
+
+    OPT   Est. Speedup: 32.32%                                                                                          
+          Instructions are executed in warps, which are groups of 32 threads. Optimal instruction throughput is         
+          achieved if all 32 threads of a warp execute the same instruction. The chosen launch configuration, early     
+          thread completion, and divergent flow control can significantly lower the number of active threads in a warp  
+          per cycle. This workload achieves an average of 12.1 threads being active per cycle. This is further reduced  
+          to 11.6 threads per warp due to predication. The compiler may use predication to avoid an actual branch.      
+          Instead, all instructions are scheduled, but a per-thread condition code or predicate controls which threads  
+          execute the instructions. Try to avoid different execution paths within a warp when possible.                 
+
+    Section: Instruction Statistics
+    ---------------------------------------- ----------- ------------
+    Metric Name                              Metric Unit Metric Value
+    ---------------------------------------- ----------- ------------
+    Avg. Executed Instructions Per Scheduler        inst 1,437,133.19
+    Executed Instructions                           inst  229,941,311
+    Avg. Issued Instructions Per Scheduler          inst 1,439,290.97
+    Issued Instructions                             inst  230,286,555
+    ---------------------------------------- ----------- ------------
+
+    OPT   Est. Speedup: 14.57%                                                                                          
+          This kernel executes 10332351 fused and 60682252 non-fused FP32 instructions. By converting pairs of          
+          non-fused instructions to their fused                                                                         
+          (https://docs.nvidia.com/cuda/floating-point/#cuda-and-floating-point), higher-throughput equivalent, the     
+          achieved FP32 performance could be increased by up to 43% (relative to its current performance).              
+
+    Section: Launch Statistics
+    -------------------------------- --------------- ---------------
+    Metric Name                          Metric Unit    Metric Value
+    -------------------------------- --------------- ---------------
+    Block Size                                                    64
+    Function Cache Configuration                     CachePreferNone
+    Grid Size                                                  7,500
+    Registers Per Thread             register/thread              63
+    Shared Memory Configuration Size           Kbyte           32.77
+    Driver Shared Memory Per Block        byte/block               0
+    Dynamic Shared Memory Per Block       byte/block               0
+    Static Shared Memory Per Block        byte/block               0
+    # SMs                                         SM              40
+    Stack Size                                                 1,024
+    Threads                                   thread         480,000
+    # TPCs                                                        20
+    Enabled TPC IDs                                              all
+    Uses Green Context                                             0
+    Waves Per SM                                               11.72
+    -------------------------------- --------------- ---------------
+
+    Section: Occupancy
+    ------------------------------- ----------- ------------
+    Metric Name                     Metric Unit Metric Value
+    ------------------------------- ----------- ------------
+    Block Limit SM                        block           16
+    Block Limit Registers                 block           16
+    Block Limit Shared Mem                block           16
+    Block Limit Warps                     block           16
+    Theoretical Active Warps per SM        warp           32
+    Theoretical Occupancy                     %          100
+    Achieved Occupancy                        %        77.26
+    Achieved Active Warps Per SM           warp        24.72
+    ------------------------------- ----------- ------------
+
+    OPT   Est. Speedup: 22.74%                                                                                          
+          The difference between calculated theoretical (100.0%) and measured achieved occupancy (77.3%) can be the     
+          result of warp scheduling overheads or workload imbalances during the kernel execution. Load imbalances can   
+          occur between warps within a block as well as across blocks of the same kernel. See the CUDA Best Practices   
+          Guide (https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html#occupancy) for more details on     
+          optimizing occupancy.                                                                                         
+

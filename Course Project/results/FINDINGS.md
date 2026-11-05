@@ -1095,6 +1095,38 @@ shadow rays, about half of all rays, stop at the first hit, so ordering and prun
 - nsys single-run times (bare 3.41 ms, full 1.67 ms) are not usable: bare's nsys time ≈ its ncu time
   at 585 MHz, which can't be right at boost clock. Single unwarmed launches; use the timing sweep.
 
+### 15.5 Second scene: `kaushik_scene.h` (profiles `profiles_kaushik_*`)
+
+Same settings (N=5000, depth 10, threshold 0.01; baseline 32×32, others 8×8).
+Scene differences (from the headers): median radius 0.128 vs 0.079 (range 0.063–0.200 vs 0.040–0.500),
+spheres spread up to y = 10.1 (vs ≤ 0.93), lower reflectivity (mean 0.25 vs 0.39, floor 0.09 vs 0.20).
+**Caveat:** `multi_reflections_fma.cu` now keeps `a = dot(dir, dir)` (commit 54c8e81), so the fma rows
+here are the "a kept" variant (2 FMUL per test instead of 1), unlike `profiles_fma_8x8` (a = 1).
+
+| Profile | Duration (ncu) | vs previous | SM % / L1/TEX % / L2 % | Top pipe | Active threads | No eligible | IPC |
+|---|---|---|---|---|---|---|---|
+| baseline | 153.3 ms | – | 57.1 / 61.1 / 0.30 | FMA 48 % | 23.0 | 41.9 % | 2.23 |
+| fma 8×8 | 98.4 ms | 1.56× | 63.5 / 76.3 / 0.51 | FMA 61 % | 24.2 | 31.1 % | 2.70 |
+| bvh bare 8×8 | 5.21 ms | 18.9× | 48.7 / 86.4 / 22.4 | ALU 42 % | 11.9 | 48.3 % | 2.02 |
+| bvh full 8×8 | 4.86 ms | 1.07× | 50.7 / **88.8** / 12.1 | ALU 46 % | 12.1 | 46.1 % | 2.11 |
+
+Total: 31.5× baseline → full BVH (scene.h: 61×).
+
+- **Flat versions:** slightly faster than on scene.h (baseline 153 vs 184 ms) although they execute ~3 %
+  more FP instructions; achieved occupancy (82 vs 72 %) and active threads (23.0 vs 20.4) are higher.
+- **BVH is ~1.5× slower here than on scene.h** (bare 5.21 vs 3.45 ms, full 4.86 vs 3.00 ms):
+  - thread-level FP work +18 % (bare: box-test FMUL 354 vs 287 M, sphere-test FFMA 93 vs 101 M), i.e.
+    more box tests per ray, about the same sphere tests;
+  - SIMD efficiency −20 % (11.9 vs 14.8 active threads per warp);
+  - together ≈ 1.5× more warp instructions (IPC × SM active cycles: 5.9 M vs 3.9 M per SM), matching
+    the slowdown. Larger spheres and the wider y range likely give bigger, more overlapping boxes, so
+    more nodes per ray and more diverging paths (not checked).
+- **Bare → full: 1.07× here vs 1.15× on scene.h.** Same memory pattern as before: L2 bytes 823 → 383 MB,
+  DRAM writes 19.9 → 3.6 MB (fewer stack pushes).
+- **Classification:** all latency-bound, as on scene.h. Both BVH versions are memory-leaning and left of
+  the L1 and L2 ridges (FLOP/byte: bare L1 0.44 / L2 1.09, full 0.65 / 2.5). L1/TEX at 89 % (full BVH)
+  is the highest unit utilization measured so far.
+
 ## 16. Open items
 
 - [x] ncu **Source** page: stalls are ~98 % in the sphere loop; 4 scalar `LDG` per sphere (§3.6).
