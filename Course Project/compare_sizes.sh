@@ -59,6 +59,8 @@ python3 compare_images.py image_base.ppm image_opt.ppm || echo "WARNING: $NAME i
 # 128-bit global loads in each binary (the split version should have some in the sphere loop)
 echo "LDG.E.128 instructions: baseline $(cuobjdump -sass mr_base | grep -c 'LDG.E.128' || true)," \
      "$NAME $(cuobjdump -sass mr_opt | grep -c 'LDG.E.128' || true)"
+echo "LDG.E.64 instructions: baseline $(cuobjdump -sass mr_base | grep -c 'LDG.E.64' || true)," \
+     "$NAME $(cuobjdump -sass mr_opt | grep -c 'LDG.E.64' || true)"
 } | tee "$OUT"
 rm image_base.ppm image_opt.ppm
 

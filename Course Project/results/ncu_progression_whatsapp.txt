@@ -1,0 +1,97 @@
+*Ray tracer – what ncu showed at each step*
+_All ncu numbers: N=5000 spheres, depth 10, threshold 0.01, locked clock 585 MHz (ncu times, not wall-clock)_
+
+Order of steps:
+baseline → split → 8x8 blocks → fma → BVH
+
+```
+ncu duration (ms)
+baseline 32x32   184.3
+split    32x32   154.7  (1.19x)
+split    8x8     112.6  (1.37x)
+fma      8x8     104.6  (1.08x)
+bare BVH 8x8       3.45 (~30x)
+```
+_Real timings (scripts, N=5000): baseline ~80 ms → fma 8x8 ~42 ms → BVH ~1.3–1.4 ms_
+
+*Overall verdict:* none of the versions is strictly compute- or memory-bound (no unit above ~76%). All are *latency-bound*: 30–46% of cycles have no warp ready to issue. What changes is which side they lean to.
+
+━━━━━━━━━━━━━━
+*1) baseline → split*
+_(float4 center + r², separate from the 36-B Sphere)_
+
+*Signs in ncu (baseline N=5000 vs N=400):*
+• lg_throttle 0.54 → 1.43, long_scoreboard 0.34 → 2.14 → together +2.7 cycles/instr = the *whole* slowdown
+• Source page: 4 scalar LDG per sphere in the loop
+• LSU was the busiest pipe (~55%)
+• L2 traffic 148x (3.5 → 519 MB), L1 hit 99.92 → 98.56% → scene (180 KB) no longer fits L1
+• Timing sweep: cliff at ~1,820 spheres (64 KB / 36 B)
+
+*What changed (same FLOPs = same work):*
+• lg_throttle 1.43 → *0.01* (1 LDG.E.128 instead of 4 loads)
+• L1 bytes 35.8 → 9.0 GB (4x), L2 519 → 211 MB (2.45x)
+• LSU pipe ~55 → ~16%, memory SoL 51.5 → 24%
+• long_scoreboard *rose* 2.14 → 2.67: removing the throttle exposed the load latency (N=5000 is still past the split's own L1 limit of ~4,096 spheres)
+• L1 hit rate *fell* 98.6 → 97.7% although real misses dropped: the removed requests were hits on the same sector → hit rate is misleading here
+• Now compute-leaning (SM 52% vs memory 24%)
+
+━━━━━━━━━━━━━━
+*2) split → 8x8 blocks*
+
+*Signs in ncu (split 32x32):*
+• Occupancy: Block Limit Registers = 1 → one 1024-thread block per SM; achieved 74.6% vs 100% theoretical
+• Scheduler: 6.39 active but only 1.88 eligible warps; 42% of cycles issue nothing
+• Warp state: long_scoreboard + wait ≈ half of all stall cycles → needs latency hiding
+• Divergence: 20.4 of 32 threads active
+
+*What changed:*
+• Active threads 20.4 → 22.9 (≈11% fewer warp instructions for the same work)
+• IPC 2.16 → 2.66, no-eligible 42 → 31%
+• Occupancy only 74.6 → 80.7% → the gain came mostly from less divergence + better issue, not occupancy
+• math_pipe_throttle 1.77 → 1.12, not_selected 2.24 → 1.64 (warps no longer move in lockstep)
+• wait unchanged 2.41 → 2.40 (dependency chain doesn't care about block shape)
+• Cost: L2 traffic 211 → 564 MB, L1 hit 97.7 → 92.9% (out-of-step warps share L1 less); L2 still idle (0.58%)
+• Most compute-leaning version: SM 64%, FMA pipe 64%, ncu: "Compute more heavily utilized than Memory"
+
+━━━━━━━━━━━━━━
+*3) 8x8 → fma*
+_(fewer FP32 instructions per sphere test: r² stored, half-b, a = 1, −r² folded into the FMA chain)_
+
+*Signs in ncu (split 8x8):*
+• FMA was the busiest pipe (63.5%), kernel compute-heavy
+• wait stall (2.40) stayed constant through every change → the per-sphere dependency chain itself costs
+• XU (sqrt etc.) ≈ 0 → sqrt/division only run on hits; the miss path (every sphere) is the target
+• Two failed attempts (2-sphere loop, prefetch) showed: adding instructions to hide latency makes it slower → must *remove* instructions
+
+*What changed:*
+• FP32 instr per sphere test 13 → 10 (FADD 4→3, FMUL 3→1, FFMA 6); total 74.6 G → 57.4 G (−23%)
+• FMA pipe 63.5 → 56.3%; *L1/TEX (71%) became the busiest unit*
+• GFLOP/s *fell* 969 → 878 although faster: it does fewer FLOPs
+• IPC 2.66 → 2.57, eligible warps 1.81 → 1.50 (removed instructions partly filled idle slots)
+• Image: 0.36% of pixels differ, all on silhouettes of small far spheres (float precision, not a bug)
+
+━━━━━━━━━━━━━━
+*4) fma → BVH*
+
+*Signs (algorithmic decision, informed by the profiles):*
+• Work scales exactly with N: FP32 instructions 5.96 G at N=400 vs 74.6 G at N=5000 = *12.5x = 5000/400* → every ray tests every sphere
+• No hardware lever left with a big payoff: all versions latency-bound, no unit above 72%; ncu's remaining estimates (scheduler 32%, divergence 19%, occupancy 19%) are overlapping upper bounds; latency-hiding attempts failed
+• → the lever left was the *number* of sphere tests, not their cost
+
+*What changed (bare BVH):*
+• ~30x faster (ncu), FP32 instructions ~85x fewer (57.4 G → 0.68 G)
+• Work changed character: box tests (fmin/fmax), stack, branches → *ALU now the busiest pipe (43%)*; FLOP/s only 7.5% of peak (a FLOP roofline undersells this kernel)
+• Divergence much worse: 14.8 of 32 threads active (was 22.7) – each thread walks its own path through the tree
+• Eligible warps 1.50 → 1.21, no-eligible 34 → 42%
+• Memory-leaning now: L1/TEX busiest unit (75.6%), L1 roofline dot left of its ridge (~0.25 FLOP/B), long_scoreboard ≈ 3.6 of 10.8 cycles (33.7%)
+• Same L2 bytes (406 → 403 MB) in 1/30 of the time → L2 throughput 16.7%; DRAM writes 19 MB (image is only 1.4 MB)
+• Registers 43 → 55 (still 100% theoretical occupancy at 8x8)
+• Achieved occupancy 74% (was 81%): with 8x8 = 2 warps per block and the 16-blocks-per-SM cap, a block's slots only free up when its *slower* warp finishes; BVH ray costs vary a lot per pixel → warps finish at very different times → idle slots (ncu: "workload imbalance")
+
+━━━━━━━━━━━━━━
+*Caveats*
+1. Durations above are ncu times at 585 MHz; quote real speedups from the timing scripts
+2. split 8x8 stall numbers are from an earlier profile of the same config (re-profiled since; headline metrics within ~1%)
+3. fma profile has no stall breakdown; BVH only has long_scoreboard (from ncu's text)
+4. "BVH stack lives in local memory" is a hypothesis (fits the 19 MB DRAM writes and the 28.8 MB local-memory reservation), not yet confirmed
+5. None of these is strictly compute- or memory-bound; "leaning" = which side is busier
