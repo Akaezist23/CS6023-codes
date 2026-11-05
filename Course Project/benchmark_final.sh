@@ -4,7 +4,7 @@ set -e
 # Usage: bash benchmark_final.sh
 #   Runs every timing measurement the report uses, with the method of report Sec. 2:
 #   kernel time with CUDA events after an in-process warm-up launch, mean of RUNS runs
-#   (default 20), every comparison inside one script call (same session).
+#   (default 10), every comparison inside one script call (same session).
 #   Flat versions only (no BVH). Results go to results/final/<scene>/.
 #
 #   STAGES selects what to run (default: all, in this order; ~1.5-2 h in total on a T4):
@@ -21,7 +21,7 @@ set -e
 #   Example: STAGES="all sizes" SCENES="kaushik_scene.h" bash benchmark_final.sh
 STAGES=${STAGES:-"cpu depth resolution all sizes blocks"}
 SCENES=${SCENES:-"scene.h scene_adversarial.h kaushik_scene.h"}
-export RUNS=${RUNS:-20}   # runs per data point
+export RUNS=${RUNS:-10}   # runs per data point
 DEPTH=10
 THRESHOLD=0.01
 FLAT="timed:32x32 split:32x32 split:8x8 2sphere:8x8 prefetch:8x8 fma:8x8"   # fp16: later, see FP16=1

@@ -89,4 +89,5 @@ done
 } | tee -a "$OUT"
 
 rm mr_base mr_opt
+python3 table_to_csv.py sizes "$OUT"   # same table as CSV, for plotting
 echo "Saved to $OUT"

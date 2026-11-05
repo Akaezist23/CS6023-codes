@@ -72,4 +72,5 @@ done
 } | tee -a "$OUT"
 
 rm mr_blocks
+python3 table_to_csv.py blocks "$OUT"   # same table as CSV, for plotting
 echo "Saved to $OUT"

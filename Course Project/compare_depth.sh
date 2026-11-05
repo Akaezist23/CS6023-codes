@@ -77,4 +77,5 @@ done
 
 for ((v = 0; v <= LAST; v++)); do rm mr_v$v; done
 [ "$SAVE_IMAGES" = 1 ] && echo "Images in results/depth_images/"
+python3 table_to_csv.py depth "$OUT"   # same table as CSV, for plotting
 echo "Saved to $OUT"
