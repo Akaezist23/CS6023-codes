@@ -150,6 +150,10 @@ int main(int argc, char** argv) {
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
+    // Untimed warm-up launch in this process: absorbs the first-launch overhead (lazy loading of
+    // the kernel code, ~0.15 ms) that would otherwise fall inside the timed event window.
+    renderKernel<<<dim3((W + 31) / 32, (H + 31) / 32), dim3(32, 32)>>>(d_image, d_scene, scene.size(), W, H, cameraPos, aspect);
+    cudaDeviceSynchronize();
     cudaEventRecord(start);
     renderKernel<<<dim3((W + 31) / 32, (H + 31) / 32), dim3(32, 32)>>>(d_image, d_scene, scene.size(), W, H, cameraPos, aspect);
     cudaEventRecord(stop);

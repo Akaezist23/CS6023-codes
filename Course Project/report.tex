@@ -1,0 +1,354 @@
+\documentclass[11pt,a4paper]{article}
+
+% -----------------------------------------------------------------------------
+% CS6868 Research Mini-Project Report Template
+% -----------------------------------------------------------------------------
+% Target length: 5-10 pages (including figures, excluding references).
+% Compile with: latexmk -pdf main.tex
+% -----------------------------------------------------------------------------
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[margin=1in]{geometry}
+\usepackage{microtype}
+\usepackage{lmodern}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{subcaption}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{hyperref}
+\usepackage[capitalise,noabbrev]{cleveref}
+\usepackage{minted}
+\usepackage[section]{placeins}
+\usepackage{tabularx}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+
+% --- Drafting markers (remove before submission) -----------------------------
+% \rebench{x}: a number that must be re-measured with the final benchmarking method
+% \profiletodo{...}: where profiler (ncu/nsys) details will go
+\newcommand{\rebench}[1]{\textcolor{red}{#1}}
+\newcommand{\profiletodo}[1]{\par\smallskip\noindent\fcolorbox{blue!60!black}{blue!5}{%
+  \parbox{\dimexpr\linewidth-2\fboxsep-2\fboxrule}{\small\textcolor{blue!60!black}{\textbf{Profile (todo):} #1}}}\par\smallskip}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=black,
+  citecolor=blue!60!black,
+  urlcolor=blue!60!black,
+}
+
+% --- Listings style (for code snippets) ---------------------------------------
+\definecolor{codegray}{gray}{0.95}
+\lstset{
+  basicstyle=\ttfamily\small,
+  backgroundcolor=\color{codegray},
+  frame=single,
+  framesep=4pt,
+  breaklines=true,
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false,
+}
+
+% --- Title block --------------------------------------------------------------
+\title{%
+  \textbf{CS6023 Course Project} \\[0.3em]
+  \Large CUDA Ray Tracing
+}
+\author{%
+  Ventrapragada Krishna Sameer \\ \texttt{cs23b078@smail.iitm.ac.in}
+}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+
+The main goal of this project is to build a working ray tracer in CUDA, add reflections and shadows, then make it faster. We start with a basic CPU ray tracer that renders 3 spheres on a checkerboard
+floor with diffuse shading and hard shadows. We first port it to CUDA and then extend it to multiple reflections with multiple spheres. The report provides all the optimizations we did.
+
+\end{abstract}
+
+% =============================================================================
+\section{Introduction}
+\label{sec:intro}
+
+Ray tracing computes the colour of every pixel by following a ray from the camera into the scene,
+finding the closest object it hits, and shading that point. Shadows need a second ray towards the
+light, and reflections need further rays from every reflective surface. Every pixel is independent,
+which makes the problem naturally parallel, but the amount of work per pixel varies: a ray that sees
+the sky stops at once, while a ray that keeps hitting mirrors bounces many times. This irregular
+control flow is what makes it an interesting GPU workload.
+
+The project follows the brief in three stages:
+\begin{enumerate}[nosep]
+  \item port the given CPU ray tracer (3 spheres on a checkerboard floor, diffuse shading, hard
+        shadows) to CUDA, producing the same image (\cref{sec:port});
+  \item extend it to multiple reflection bounces and study the effect of bounce depth and image
+        resolution on the execution time (\cref{sec:multibounce});
+  \item scale the scene up to 5,000 spheres and make the kernel faster, one measured step at a time
+        (\cref{sec:scene,sec:opt,sec:failed}).
+\end{enumerate}
+Each optimization follows the same loop: profile, form a hypothesis about the bottleneck, change one
+thing, and measure again. Optimizations that did not help are reported together with the likely
+reason. \Cref{sec:discussion} collects what the measurements showed about warp divergence, occupancy,
+register pressure and memory behaviour. A bounding volume hierarchy, which changes the algorithm
+rather than how the GPU executes it, is discussed briefly as an extension in \cref{sec:bvh}.
+
+% =============================================================================
+\section{Setup and measurement method}
+\label{sec:method}
+
+\begin{table}[h]
+  \centering
+  \begin{tabular}{@{}ll@{}}
+    \toprule
+    GPU         & NVIDIA Tesla T4 (Turing, compute capability 7.5), 40 SMs, Google Colab \\
+    Toolchain   & \texttt{nvcc} 13.0, \texttt{-O2 -std=c++11} \\
+    Profilers   & Nsight Systems 2025.3.1, Nsight Compute 2025.3.1 \\
+    Image       & $800 \times 600$ pixels unless stated otherwise \\
+    Default render & reflection depth 10, energy threshold 0.01 (\cref{sec:multibounce}) \\
+    \bottomrule
+  \end{tabular}
+  \caption{Hardware and software used for all measurements.}
+  \label{tab:setup}
+\end{table}
+
+\paragraph{Timing.} Only the kernel is timed, with a pair of CUDA events around the launch. Every
+program first runs one untimed launch of the same kernel in the same process and synchronizes, then
+times a second launch. This warm-up matters for two reasons. The first run on an idle GPU is slow
+while the clocks ramp up (the first run of a session took 2.37\,ms where later runs took 0.23\,ms).
+And the first launch in every new process waits for the kernel code to be loaded: Nsight Systems
+showed $\approx$173\,$\mu$s between \texttt{cudaLaunchKernel} and the start of the kernel, which an
+earlier version of the method counted inside the timed window. For the 40--80\,ms kernels of the
+large scenes that is below 0.5\,\%, but for sub-millisecond kernels it was a large part of the
+measured time.
+
+\paragraph{Repetitions and sessions.} Every data point is the mean of \rebench{20} runs (separate
+processes), produced by the benchmark scripts in the project root. Kernel times on Colab vary between
+sessions by up to $\approx$7\,\% (the same binary measured 78.1 and 84.0\,ms on different days), so
+versions are only compared when they were measured in the same session. One optimization
+(\cref{sec:prefetch}) looked like a gain across sessions and turned out to be a loss within one.
+
+\paragraph{Correctness.} Every new version renders the same scene and is compared pixel by pixel with
+its predecessor. All versions are either identical or the difference is explained
+(\cref{sec:fma}).
+
+\paragraph{Profiles.} Nsight Compute locks the SM clock at its base frequency (585\,MHz instead of
+$\approx$1590\,MHz boost), so its kernel durations are about 2.6$\times$ the event timings. Profile
+numbers are only compared with other profile numbers.
+
+% =============================================================================
+\section{Porting the CPU ray tracer to CUDA}
+\label{sec:port}
+
+\subsection{The CPU program}
+The starter program renders 3 spheres on a checkerboard floor; the floor is itself a sphere of
+radius 1000. For every pixel it builds a ray from the camera, finds the closest sphere the ray hits,
+computes diffuse lighting plus a small ambient term, and casts one shadow ray towards the light. The
+pixels are processed by two nested loops on one CPU thread.
+
+\subsection{Mapping pixels to threads}
+Since every pixel is independent, the port uses \textbf{one thread per pixel} on a two-dimensional
+grid:
+\begin{lstlisting}[language=C++]
+int px = blockIdx.x * blockDim.x + threadIdx.x;
+int py = blockIdx.y * blockDim.y + threadIdx.y;
+if (px >= W || py >= H) return;      // the grid is rounded up to whole blocks
+\end{lstlisting}
+\begin{itemize}[nosep]
+  \item The first version uses blocks of $32 \times 32$ threads (the maximum of 1,024), i.e. a grid
+        of $\lceil 800/32 \rceil \times \lceil 600/32 \rceil = 25 \times 19$ blocks. Since 600 is not
+        a multiple of 32, the last row of blocks has 8 rows of idle threads, which the bounds check
+        handles. The block shape is revisited in \cref{sec:blocks}.
+  \item A warp is formed from 32 consecutive values of \texttt{threadIdx.x}, so with 32-wide blocks
+        \textbf{one warp is one row of 32 pixels}. This determines which rays execute together and
+        becomes important for divergence later.
+  \item The scene is copied to global memory once before the launch; the image is copied back once
+        after it. The device code is the CPU code with \texttt{\_\_device\_\_} qualifiers.
+\end{itemize}
+
+The GPU image matches the CPU image except for 4 of 480,000 pixels, which differ by 1/255: the GPU
+compiler fuses \texttt{a*b+c} into a single fused multiply-add instruction, which rounds once instead
+of twice.
+
+\subsection{CPU vs.\ GPU}
+\label{sec:cpugpu}
+
+\begin{table}[h]
+  \centering
+  \begin{tabular}{@{}lr@{}}
+    \toprule
+    $800 \times 600$, 3 spheres & Time \\
+    \midrule
+    CPU, \texttt{g++ -O2}, one thread (whole process) & 47.1\,ms \\
+    GPU kernel (CUDA events) & \rebench{0.159\,ms} \\
+    GPU, whole process & 240.5\,ms \\
+    \bottomrule
+  \end{tabular}
+  \caption{The starter scene on the CPU and on the GPU. The CPU program has no internal timer, so
+    its time is the wall time of the whole process, including writing the image file.}
+  \label{tab:cpugpu}
+\end{table}
+
+The kernel is \rebench{about 300$\times$} faster than the CPU loop, but the GPU program as a whole is
+five times \emph{slower}: almost all of its 240\,ms is spent creating the CUDA context (the first
+\texttt{cudaMalloc} alone takes $\approx$180\,ms) and copying data. A three-sphere scene is far too
+small to say anything about GPU efficiency, so the rest of the project uses much larger scenes and
+times only the kernel.
+
+% =============================================================================
+\section{Multiple reflection bounces}
+\label{sec:multibounce}
+
+\subsection{From recursion to a loop}
+Reflection is naturally recursive: the colour seen along a ray is the local shading plus $k$ times
+the colour seen along the reflected ray, where $k$ is the reflectivity of the surface. Deep recursion
+is a poor fit for a GPU, since every thread has only a small stack and the recursion depth differs
+between threads. The bounce chain is therefore written as a loop that carries the remaining
+\textbf{energy} of the ray:
+\begin{lstlisting}[language=C++]
+float curr = 1;                          // how much this bounce still contributes
+do {
+    depth--;
+    hit = closestHit(origin, dir, ...);
+    if (hit < 0) { color += sky(dir) * curr; break; }   // the ray leaves the scene
+    ... local shading and shadow ray ...
+    color = color + local * curr * (1.0f - k);
+    curr *= k;
+    origin = p + n * 0.001f;             // start slightly off the surface
+    dir = normalize(dir - n * 2 * dot(dir, n));          // r = d - 2 (d.n) n
+} while (depth >= 0 && curr > threshold);
+\end{lstlisting}
+Every sphere and the floor have their own reflectivity. Depth 0 means no reflection bounce.
+
+\subsection{Stopping conditions}
+A ray stops when (a) the maximum depth is reached, (b) it misses everything and sees the sky, or
+(c) its remaining energy drops below a threshold (default 0.01), after which further bounces cannot
+change the pixel noticeably. Shadow rays only need to know \emph{whether} something blocks the
+light, not what is closest, so the search returns at the first hit for them.
+
+\subsection{Effect of the bounce depth}
+\label{sec:depth}
+
+\Cref{tab:depth} shows the kernel time as a function of the maximum depth for a scene of 400
+spheres, with and without the energy threshold, for the first multi-bounce version (``baseline'')
+and the final optimized version of \cref{sec:opt} (``best'').
+
+\begin{table}[h]
+  \centering
+  \begin{tabular}{@{}rrrrr@{}}
+    \toprule
+    & \multicolumn{2}{c}{threshold 0.01} & \multicolumn{2}{c}{no threshold} \\
+    \cmidrule(lr){2-3}\cmidrule(l){4-5}
+    depth & baseline & best & baseline & best \\
+    \midrule
+    0  & \rebench{1.784} & \rebench{1.410} & \rebench{1.703} & \rebench{1.290} \\
+    1  & \rebench{2.552} & \rebench{1.866} & \rebench{2.387} & \rebench{1.849} \\
+    2  & \rebench{3.048} & \rebench{2.240} & \rebench{3.071} & \rebench{2.243} \\
+    3  & \rebench{3.545} & \rebench{2.552} & \rebench{3.618} & \rebench{2.565} \\
+    5  & \rebench{4.027} & \rebench{2.799} & \rebench{4.481} & \rebench{3.046} \\
+    10 & \rebench{4.108} & \rebench{2.825} & \rebench{5.825} & \rebench{3.804} \\
+    \bottomrule
+  \end{tabular}
+  \caption{Kernel time in ms against the maximum reflection depth, 400 spheres.}
+  \label{tab:depth}
+\end{table}
+
+\begin{itemize}[nosep]
+  \item \textbf{With the threshold, the time stops growing at about depth 5}: by then the threshold
+        or a sky miss has stopped almost every ray, so a larger maximum depth is never reached.
+  \item \textbf{Without the threshold}, the time keeps growing, but every additional level costs less,
+        because rays still stop when they reach the sky or a fully diffuse surface. At depth 10 the
+        threshold saves \rebench{26--29\,\%} of the time.
+  \item The speedup of the optimized version grows with depth (\rebench{1.27$\times$} at depth 0,
+        \rebench{1.45$\times$} at depth 10): deeper bounces make the work per pixel more uneven,
+        which is exactly what one of the optimizations reduces (\cref{sec:blocks}).
+\end{itemize}
+
+\Cref{fig:depth} shows the visual effect. Depth 1 adds the reflections in the mirror spheres and on
+the floor (45\,\% of the pixels change); depths 2 and 3 add reflections of reflections between
+neighbouring spheres (19\,\% and 7\,\%); from depth 4 on the changes are invisible, and from depth 9
+the image no longer changes at all.
+
+\begin{figure}[h]
+  \centering
+  \begin{subfigure}{0.24\linewidth}\includegraphics[width=\linewidth]{results/depth_images/depth_0.png}\caption{depth 0}\end{subfigure}\hfill
+  \begin{subfigure}{0.24\linewidth}\includegraphics[width=\linewidth]{results/depth_images/depth_1.png}\caption{depth 1}\end{subfigure}\hfill
+  \begin{subfigure}{0.24\linewidth}\includegraphics[width=\linewidth]{results/depth_images/depth_3.png}\caption{depth 3}\end{subfigure}\hfill
+  \begin{subfigure}{0.24\linewidth}\includegraphics[width=\linewidth]{results/depth_images/depth_10.png}\caption{depth 10}\end{subfigure}
+  \caption{The same scene (400 spheres) rendered with increasing maximum reflection depth.}
+  \label{fig:depth}
+\end{figure}
+
+\subsection{Effect of the image resolution}
+\label{sec:resolution}
+
+% TODO: rebench table + pgfplots plot of ms per megapixel vs resolution
+All tested resolutions have the same 4:3 aspect ratio, so the view and the work per pixel stay the
+same. Above about one megapixel the time grows linearly with the number of pixels
+(\rebench{6.4--6.9\,ms} per megapixel for the baseline, \rebench{4.5--5.0} for the best version), and
+the speedup of the optimizations is the same at every size (\rebench{1.4--1.5$\times$}). Small images
+are less efficient: a $320 \times 240$ image has only 76,800 threads ($\approx$2,400 warps), while a
+T4 can hold 1,280 warps at the same time, so there are fewer than two ``waves'' of work and the last,
+partial wave leaves SMs idle. \rebench{(Part of the earlier small-image cost was the first-launch
+overhead of \cref{sec:method}; to be re-measured.)}
+
+% =============================================================================
+\section{Scaling the scene}
+\label{sec:scene}
+% TODO (increment 2): 5,000-sphere scene; time linear in N; the L1 capacity cliff; pgfplots plot.
+
+% =============================================================================
+\section{GPU-side optimizations}
+\label{sec:opt}
+% TODO (increment 2): each as observation -> change -> measured result.
+
+\subsection{Scene in shared memory}
+\label{sec:shared}
+
+\subsection{Separating the data the intersection test needs}
+\label{sec:split}
+
+\subsection{Block size and shape}
+\label{sec:blocks}
+
+\subsection{Fewer floating-point instructions per test}
+\label{sec:fma}
+
+% =============================================================================
+\section{Attempts that did not help}
+\label{sec:failed}
+% TODO (increment 3)
+
+\subsection{Two spheres per loop iteration}
+\label{sec:2sphere}
+
+\subsection{Software prefetch}
+\label{sec:prefetch}
+
+\subsection{Half-precision sphere storage}
+\label{sec:fp16}
+
+% =============================================================================
+\section{Divergence, occupancy, registers and memory}
+\label{sec:discussion}
+% TODO (increment 3)
+
+% =============================================================================
+\section{Extension: a bounding volume hierarchy}
+\label{sec:bvh}
+% TODO (increment 3): brief, with the timing results; little profiling.
+
+% =============================================================================
+\section{Conclusion}
+\label{sec:conclusion}
+% TODO (increment 3)
+
+\end{document}

@@ -17,6 +17,8 @@ ARGS="$@"
 OUT=${OUT:-profiles$SUFFIX}
 mkdir -p "$OUT"
 
+# Each program launches the kernel twice (an untimed in-process warm-up, then the timed launch);
+# ncu profiles only the second one (--launch-skip 1 --launch-count 1). nsys sees both.
 # Build with -lineinfo so ncu can map stalls / memory traffic back to source lines.
 nvcc "$SRC" -o multi_reflections -O2 -std=c++11 -lineinfo $NVFLAGS
 
@@ -33,7 +35,7 @@ nsys profile --trace=cuda --stats=true --force-overwrite=true \
 # Note: ncu locks the GPU to its base clock by default, so its kernel durations
 # are longer than the ones run.sh measures. Compare ratios, not absolute times.
 echo "========== ncu (full set) =========="
-ncu --set full --import-source yes --force-overwrite \
+ncu --set full --import-source yes --force-overwrite --launch-skip 1 --launch-count 1 \
     -o "$OUT/ncu_report" ./multi_reflections $ARGS
 
 ncu --import "$OUT/ncu_report.ncu-rep" --page details \
@@ -50,7 +52,7 @@ ncu --import "$OUT/ncu_report.ncu-rep" --page details \
 #   FLOPs = fadd + fmul + 2 * ffma   (and the same for doubles, to check none sneak in)
 #   bytes = DRAM read + write (also L2 / L1 traffic, for the hierarchical roofline)
 echo "========== ncu (roofline counters) =========="
-ncu --metrics \
+ncu --launch-skip 1 --launch-count 1 --metrics \
 gpu__time_duration.sum,\
 sm__sass_thread_inst_executed_op_fadd_pred_on.sum,\
 sm__sass_thread_inst_executed_op_fmul_pred_on.sum,\

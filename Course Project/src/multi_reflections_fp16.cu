@@ -78,8 +78,12 @@ struct __align__(8) SphereH {
     __half2 xy;   // center x, y
     __half2 zr2;  // center z, radius^2
 };
-__device__ float4 toFloat4(const SphereH& h) {
-    float2 xy = __half22float2(h.xy), zr2 = __half22float2(h.zr2);
+// Load sphere i with one 64-bit load (as uint2; the SphereH struct itself compiled to separate
+// loads), then reinterpret its two 32-bit halves as __half2 and convert to float32.
+__device__ float4 loadSphere(const SphereH* active_scene, int i) {
+    uint2 raw = reinterpret_cast<const uint2*>(active_scene)[i];
+    float2 xy  = __half22float2(*reinterpret_cast<const __half2*>(&raw.x));
+    float2 zr2 = __half22float2(*reinterpret_cast<const __half2*>(&raw.y));
     return make_float4(xy.x, xy.y, zr2.x, zr2.y);
 }
 
@@ -91,7 +95,7 @@ __device__ int closestHit(Vec3 origin, Vec3 dir, float4 floorSphere, SphereH* ac
     if (shadow && t > 0) return 0;
     if (t > 0 && t < closest) { closest = t; best = 0; }
     for (int i = 1; i < scene_size; i++) {
-        t = hitSphere(toFloat4(active_scene[i]), origin, dir);
+        t = hitSphere(loadSphere(active_scene, i), origin, dir);
         if (shadow && t > 0) return i; // we don't need the distance for shadows
         if (t > 0 && t < closest) { closest = t; best = i; }
     }
@@ -220,6 +224,10 @@ int main(int argc, char** argv) {
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
+    // Untimed warm-up launch in this process: absorbs the first-launch overhead (lazy loading of
+    // the kernel code, ~0.15 ms) that would otherwise fall inside the timed event window.
+    renderKernel<<<dim3((W + bx - 1) / bx, (H + by - 1) / by), dim3(bx, by)>>>(d_image, d_scene, floorSphere, d_active_scene, sceneSize, W, H, cameraPos, aspect, depth, threshold);
+    cudaDeviceSynchronize();
     cudaEventRecord(start);
     renderKernel<<<dim3((W + bx - 1) / bx, (H + by - 1) / by), dim3(bx, by)>>>(d_image, d_scene, floorSphere, d_active_scene, sceneSize, W, H, cameraPos, aspect, depth, threshold);
     cudaEventRecord(stop);

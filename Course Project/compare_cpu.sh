@@ -15,7 +15,7 @@ W=${1:-800}
 H=${2:-600}
 CXXFLAGS=${CXXFLAGS:--O2}
 RUNS=${RUNS:-5}   # runs per data point; override with RUNS=20
-OUT=results/compare_cpu.txt
+OUT=${OUT:-results/compare_cpu.txt}
 mkdir -p results
 
 g++ $CXXFLAGS -o raytracer_cpu starter_raytracer_cpu.cpp
