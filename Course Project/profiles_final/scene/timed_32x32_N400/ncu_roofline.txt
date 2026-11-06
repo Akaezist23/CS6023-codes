@@ -1,0 +1,24 @@
+==PROF== Connected to process 29978 (/content/CS6023-codes/Course Project/CS6023-codes/Course Project/multi_reflections)
+==PROF== Profiling "renderKernel" - 0 (1/1): 0%....50%....100% - 3 passes
+Wrote image.ppm (800x600, N 400, depth 10, threshold 0.01, block 32x32)
+Kernel time: 1890.398 ms
+==PROF== Disconnected from process 29978
+[29978] multi_reflections@127.0.0.1
+  renderKernel(unsigned char *, Sphere *, int, int, int, Vec3, float, int, float) (25, 19, 1)x(32, 32, 1), Context 1, Stream 7, Device 0, CC 7.5
+    Section: Command line profiler metrics
+    ------------------------------------------------- ----------- -------------
+    Metric Name                                       Metric Unit  Metric Value
+    ------------------------------------------------- ----------- -------------
+    dram__bytes_read.sum                                    Mbyte          1.10
+    dram__bytes_write.sum                                   Kbyte        989.82
+    gpu__time_duration.sum                                     ms         10.73
+    l1tex__t_bytes.sum                                      Gbyte          2.67
+    lts__t_bytes.sum                                        Mbyte          3.32
+    sm__sass_thread_inst_executed_op_dadd_pred_on.sum        inst             0
+    sm__sass_thread_inst_executed_op_dfma_pred_on.sum        inst             0
+    sm__sass_thread_inst_executed_op_dmul_pred_on.sum        inst             0
+    sm__sass_thread_inst_executed_op_fadd_pred_on.sum        inst 1,823,848,760
+    sm__sass_thread_inst_executed_op_ffma_pred_on.sum        inst 2,754,688,100
+    sm__sass_thread_inst_executed_op_fmul_pred_on.sum        inst 1,380,089,847
+    ------------------------------------------------- ----------- -------------
+

@@ -1,0 +1,14 @@
+N 5000, depth 10, threshold 0.01, scene kaushik_scene.h, 10 interleaved runs per version
+Image check split@32x32 vs timed@32x32: IDENTICAL (800x600)
+Image check split@8x8 vs timed@32x32: IDENTICAL (800x600)
+Image check 2sphere@8x8 vs timed@32x32: IDENTICAL (800x600)
+Image check prefetch@8x8 vs timed@32x32: IDENTICAL (800x600)
+Image check fma@8x8 vs timed@32x32: DIFFERENT: 4763/480000 pixels (0.992%), max channel diff 216/255, first at (x=396, y=91)
+times in ms; vs ref = time(timed) / time; vs prev = time(row above) / time
+version       block       mean      std        min        max    vs ref   vs prev
+timed         32x32     73.289    1.131     70.207     74.189     1.00x         -
+split         32x32     60.181    0.572     59.156     60.865     1.22x     1.22x
+split           8x8     52.534    1.231     50.163     53.930     1.40x     1.15x
+2sphere         8x8     54.263    0.754     53.275     56.146     1.35x     0.97x
+prefetch        8x8     57.636    1.297     55.517     59.136     1.27x     0.94x
+fma             8x8     48.714    1.197     46.851     50.081     1.50x     1.18x

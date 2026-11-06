@@ -1,0 +1,20 @@
+Image check (N=400): IDENTICAL (800x600)
+LDG.E.128 instructions: baseline 0, split 8
+LDG.E.64 instructions: baseline 0, split 0
+baseline = src/multi_reflections_timed.cu, split = src/multi_reflections_split.cu
+depth 10, threshold 0.01, 10 runs per N, times in ms
+ms/sph = (time - previous time) / (N - previous N), i.e. cost of each extra sphere (only for steps >= 50)
+     N   baseline      split   speedup    base ms/sph   split ms/sph
+   400      4.293      3.858     1.11x              -              -
+  1000      9.911      9.566     1.04x        0.00936        0.00951
+  1500     16.101     15.250     1.06x        0.01238        0.01137
+  1819     26.162     18.579     1.41x        0.03154        0.01044
+  2000     31.404     20.676     1.52x        0.02896        0.01159
+  2500     40.937     27.903     1.47x        0.01907        0.01445
+  3000     50.648     35.129     1.44x        0.01942        0.01445
+  3300     55.963     39.492     1.42x        0.01772        0.01454
+  3600     62.243     44.524     1.40x        0.02093        0.01677
+  3800     66.415     48.569     1.37x        0.02086        0.02023
+  4000     69.494     53.772     1.29x        0.01539        0.02601
+  4500     79.411     62.279     1.28x        0.01983        0.01701
+  5000     88.795     73.018     1.22x        0.01877        0.02148

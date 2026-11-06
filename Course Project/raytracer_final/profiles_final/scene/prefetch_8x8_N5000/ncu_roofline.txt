@@ -1,0 +1,26 @@
+==PROF== Connected to process 33985 (/content/CS6023-codes/Course Project/CS6023-codes/Course Project/multi_reflections)
+==PROF== Profiling "renderKernel" - 0 (1/1): 0%....50%.
+==WARNING== Launching the workload is taking more time than expected. If this continues to hang, terminate the profile and re-try by profiling the range of all related launches using '--replay-mode range'. See https://docs.nvidia.com/nsight-compute/ProfilingGuide/index.html#replay for more details.
+...100% - 3 passes
+Wrote image.ppm (800x600, N 5000, depth 10, threshold 0.01, block 8x8)
+Kernel time: 13012.113 ms
+==PROF== Disconnected from process 33985
+[33985] multi_reflections@127.0.0.1
+  renderKernel(unsigned char *, Sphere *, float4 *, int, int, int, Vec3, float, int, float) (100, 75, 1)x(8, 8, 1), Context 1, Stream 7, Device 0, CC 7.5
+    Section: Command line profiler metrics
+    ------------------------------------------------- ----------- --------------
+    Metric Name                                       Metric Unit   Metric Value
+    ------------------------------------------------- ----------- --------------
+    dram__bytes_read.sum                                    Mbyte           4.24
+    dram__bytes_write.sum                                   Mbyte           1.03
+    gpu__time_duration.sum                                     ms         114.96
+    l1tex__t_bytes.sum                                      Gbyte           8.00
+    lts__t_bytes.sum                                        Mbyte         838.38
+    sm__sass_thread_inst_executed_op_dadd_pred_on.sum        inst              0
+    sm__sass_thread_inst_executed_op_dfma_pred_on.sum        inst              0
+    sm__sass_thread_inst_executed_op_dmul_pred_on.sum        inst              0
+    sm__sass_thread_inst_executed_op_fadd_pred_on.sum        inst 22,957,330,737
+    sm__sass_thread_inst_executed_op_ffma_pred_on.sum        inst 34,456,453,884
+    sm__sass_thread_inst_executed_op_fmul_pred_on.sum        inst 17,230,951,644
+    ------------------------------------------------- ----------- --------------
+

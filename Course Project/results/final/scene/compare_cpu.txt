@@ -1,0 +1,10 @@
+Image check CPU vs GPU (800x600): DIFFERENT: 4/480000 pixels (0.001%), max channel diff 1/255, first at (x=134, y=45)
+(small differences are expected: the GPU fuses a*b+c into FMA, the CPU build may not)
+CPU: starter_raytracer_cpu.cpp, g++ -O2, 1 thread, 800x600
+GPU: src/baseline.cu, block 32x32, 800x600
+10 runs each, times in ms
+                                   mean        min        max
+CPU (process wall time)          53.547     44.977     66.484
+GPU kernel (CUDA events)          0.042      0.038      0.059
+GPU (process wall time)         248.873    226.521    308.048
+speedup CPU / GPU kernel: 1274.9x, CPU / GPU process: 0.22x

@@ -1,0 +1,145 @@
+[33641] multi_reflections@127.0.0.1
+  renderKernel(unsigned char *, Sphere *, float4 *, int, int, int, Vec3, float, int, float) (100, 75, 1)x(8, 8, 1), Context 1, Stream 7, Device 0, CC 7.5
+    Section: GPU Speed Of Light Throughput
+    ----------------------- ----------- -------------
+    Metric Name             Metric Unit  Metric Value
+    ----------------------- ----------- -------------
+    DRAM Frequency                  Ghz          5.00
+    SM Frequency                    Mhz        585.00
+    Elapsed Cycles                cycle    66,757,958
+    Memory Throughput                 %         33.08
+    DRAM Throughput                   %          0.01
+    Duration                         ms        114.12
+    L1/TEX Cache Throughput           %         66.15
+    L2 Cache Throughput               %          0.84
+    SM Active Cycles              cycle 63,345,584.70
+    Compute (SM) Throughput           %         77.56
+    ----------------------- ----------- -------------
+
+    OPT   Compute is more heavily utilized than Memory: Look at the Compute Workload Analysis section to see what the   
+          compute pipelines are spending their time doing. Also, consider whether any computation is redundant and      
+          could be reduced or moved to look-up tables.                                                                  
+
+    Section: Compute Workload Analysis
+    -------------------- ----------- ------------
+    Metric Name          Metric Unit Metric Value
+    -------------------- ----------- ------------
+    Executed Ipc Active   inst/cycle         3.22
+    Executed Ipc Elapsed  inst/cycle         3.10
+    Issue Slots Busy               %        77.56
+    Issued Ipc Active     inst/cycle         3.22
+    SM Busy                        %        77.56
+    -------------------- ----------- ------------
+
+    OPT   FMA is the highest-utilized pipeline (64.9%) based on elapsed cycles in the workload, taking into account the 
+          rates of its different instructions. It executes 32-bit floating point (FADD, FMUL, FMAD, ...) and integer    
+          (IMUL, IMAD) operations. The pipeline is well-utilized, but might become a bottleneck if more work is added.  
+          Based on the number of executed instructions, the highest utilized pipeline (64.9%) is FMA. It executes       
+          32-bit floating point (FADD, FMUL, FMAD, ...) and integer (IMUL, IMAD) operations. Comparing the two, the     
+          overall pipeline utilization appears to be caused by frequent, low-latency instructions. See the Profiling    
+          Guide (https://docs.nvidia.com/nsight-compute/ProfilingGuide/index.html#metrics-decoder) or hover over the    
+          pipeline name to understand the workloads handled by each pipeline. The Instruction Statistics section shows  
+          the mix of executed instructions for this workload.                                                           
+
+    Section: Memory Workload Analysis
+    -------------------------------------- ----------- ------------
+    Metric Name                            Metric Unit Metric Value
+    -------------------------------------- ----------- ------------
+    Local Memory Spilling Requests                                0
+    Local Memory Spilling Request Overhead           %            0
+    Memory Throughput                          Mbyte/s        38.36
+    Mem Busy                                         %        33.08
+    Max Bandwidth                                    %        33.07
+    L1/TEX Hit Rate                                  %        89.53
+    L2 Hit Rate                                      %       101.20
+    Mem Pipes Busy                                   %        18.97
+    -------------------------------------- ----------- ------------
+
+    Section: Scheduler Statistics
+    ---------------------------- ----------- ------------
+    Metric Name                  Metric Unit Metric Value
+    ---------------------------- ----------- ------------
+    One or More Eligible                   %        82.98
+    Issued Warp Per Scheduler                        0.83
+    No Eligible                            %        17.02
+    Active Warps Per Scheduler          warp         6.62
+    Eligible Warps Per Scheduler        warp         2.83
+    ---------------------------- ----------- ------------
+
+    Section: Warp State Statistics
+    ---------------------------------------- ----------- ------------
+    Metric Name                              Metric Unit Metric Value
+    ---------------------------------------- ----------- ------------
+    Warp Cycles Per Issued Instruction             cycle         7.98
+    Warp Cycles Per Executed Instruction           cycle         7.98
+    Avg. Active Threads Per Warp                                22.85
+    Avg. Not Predicated Off Threads Per Warp                    22.28
+    ---------------------------------------- ----------- ------------
+
+    OPT   Est. Speedup: 23.56%                                                                                          
+          Instructions are executed in warps, which are groups of 32 threads. Optimal instruction throughput is         
+          achieved if all 32 threads of a warp execute the same instruction. The chosen launch configuration, early     
+          thread completion, and divergent flow control can significantly lower the number of active threads in a warp  
+          per cycle. This workload achieves an average of 22.9 threads being active per cycle. This is further reduced  
+          to 22.3 threads per warp due to predication. The compiler may use predication to avoid an actual branch.      
+          Instead, all instructions are scheduled, but a per-thread condition code or predicate controls which threads  
+          execute the instructions. Try to avoid different execution paths within a warp when possible.                 
+
+    Section: Instruction Statistics
+    ---------------------------------------- ----------- -------------
+    Metric Name                              Metric Unit  Metric Value
+    ---------------------------------------- ----------- -------------
+    Avg. Executed Instructions Per Scheduler        inst 51,050,950.76
+    Executed Instructions                           inst 8,168,152,122
+    Avg. Issued Instructions Per Scheduler          inst 51,051,010.96
+    Issued Instructions                             inst 8,168,161,754
+    ---------------------------------------- ----------- -------------
+
+    OPT   Est. Speedup: 17.46%                                                                                          
+          This kernel executes 1499613047 fused and 1748499096 non-fused FP32 instructions. By converting pairs of      
+          non-fused instructions to their fused                                                                         
+          (https://docs.nvidia.com/cuda/floating-point/#cuda-and-floating-point), higher-throughput equivalent, the     
+          achieved FP32 performance could be increased by up to 27% (relative to its current performance).              
+
+    Section: Launch Statistics
+    -------------------------------- --------------- ---------------
+    Metric Name                          Metric Unit    Metric Value
+    -------------------------------- --------------- ---------------
+    Block Size                                                    64
+    Function Cache Configuration                     CachePreferNone
+    Grid Size                                                  7,500
+    Registers Per Thread             register/thread              54
+    Shared Memory Configuration Size           Kbyte           32.77
+    Driver Shared Memory Per Block        byte/block               0
+    Dynamic Shared Memory Per Block       byte/block               0
+    Static Shared Memory Per Block        byte/block               0
+    # SMs                                         SM              40
+    Stack Size                                                 1,024
+    Threads                                   thread         480,000
+    # TPCs                                                        20
+    Enabled TPC IDs                                              all
+    Uses Green Context                                             0
+    Waves Per SM                                               11.72
+    -------------------------------- --------------- ---------------
+
+    Section: Occupancy
+    ------------------------------- ----------- ------------
+    Metric Name                     Metric Unit Metric Value
+    ------------------------------- ----------- ------------
+    Block Limit SM                        block           16
+    Block Limit Registers                 block           18
+    Block Limit Shared Mem                block           16
+    Block Limit Warps                     block           16
+    Theoretical Active Warps per SM        warp           32
+    Theoretical Occupancy                     %          100
+    Achieved Occupancy                        %        80.37
+    Achieved Active Warps Per SM           warp        25.72
+    ------------------------------- ----------- ------------
+
+    OPT   Est. Local Speedup: 19.63%                                                                                    
+          The difference between calculated theoretical (100.0%) and measured achieved occupancy (80.4%) can be the     
+          result of warp scheduling overheads or workload imbalances during the kernel execution. Load imbalances can   
+          occur between warps within a block as well as across blocks of the same kernel. See the CUDA Best Practices   
+          Guide (https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html#occupancy) for more details on     
+          optimizing occupancy.                                                                                         
+

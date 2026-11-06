@@ -1,0 +1,17 @@
+N 400, depth 10, threshold 0.01, 10 runs per point, times in ms
+speedup = time(timed@32x32) / time(fma@8x8); /Mpix = ms per million pixels
+       WxH   Mpix        timed@32x32            fma@8x8   speedup
+   320x240  0.077              1.050              0.777     1.35x
+            /Mpix             13.636             10.091
+   640x480  0.307              2.947              1.892     1.56x
+            /Mpix              9.599              6.163
+   800x600  0.480              3.988              2.703     1.48x
+            /Mpix              8.308              5.631
+  1280x960  1.229              8.855              6.051     1.46x
+            /Mpix              7.205              4.924
+ 1600x1200  1.920             13.896              9.172     1.52x
+            /Mpix              7.238              4.777
+ 2400x1800  4.320             36.523             23.035     1.59x
+            /Mpix              8.454              5.332
+ 3200x2400  7.680             68.810             49.305     1.40x
+            /Mpix              8.960              6.420

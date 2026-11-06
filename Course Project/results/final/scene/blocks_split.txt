@@ -1,0 +1,15 @@
+Image check 32x16 vs 32x32 (N=400): IDENTICAL (800x600)
+Image check 32x8 vs 32x32 (N=400): IDENTICAL (800x600)
+Image check 32x4 vs 32x32 (N=400): IDENTICAL (800x600)
+Image check 16x16 vs 32x32 (N=400): IDENTICAL (800x600)
+Image check 16x8 vs 32x32 (N=400): IDENTICAL (800x600)
+Image check 8x8 vs 32x32 (N=400): IDENTICAL (800x600)
+split = src/multi_reflections_split.cu, depth 10, threshold 0.01, 10 runs per point, times in ms
+speedup = time(32x32) / time(shape) at the same N
+     N      32x32      32x16       32x8       32x4      16x16       16x8        8x8
+   400      4.392      3.574      3.362      3.207      3.136      3.038      2.937
+            1.00x      1.23x      1.31x      1.37x      1.40x      1.45x      1.50x
+  3000     37.224     35.144     34.027     33.143     32.364     32.240     31.110
+            1.00x      1.06x      1.09x      1.12x      1.15x      1.15x      1.20x
+  5000     74.905     70.306     69.005     68.552     67.824     65.220     65.717
+            1.00x      1.07x      1.09x      1.09x      1.10x      1.15x      1.14x
