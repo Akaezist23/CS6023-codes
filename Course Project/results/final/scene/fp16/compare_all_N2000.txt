@@ -1,0 +1,6 @@
+N 2000, depth 10, threshold 0.01, scene scene.h, 10 interleaved runs per version
+Image check fp16@8x8 vs fma@8x8: DIFFERENT: 23945/480000 pixels (4.989%), max channel diff 251/255, first at (x=693, y=260)
+times in ms; vs ref = time(fma) / time; vs prev = time(row above) / time
+version       block       mean      std        min        max    vs ref   vs prev
+fma             8x8     14.841    0.522     13.986     15.493     1.00x         -
+fp16            8x8     15.141    0.415     14.487     15.838     0.98x     0.98x

@@ -1,0 +1,3 @@
+version,block,mean,std,min,max,vs_ref,vs_prev
+fma,8x8,37.104,1.072,35.024,38.730,1.00,nan
+fp16,8x8,37.427,1.228,34.894,39.244,0.99,0.99

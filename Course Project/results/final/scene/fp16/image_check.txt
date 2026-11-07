@@ -1,0 +1,1 @@
+DIFFERENT: 29895/480000 pixels (6.228%), max channel diff 251/255, first at (x=693, y=260)

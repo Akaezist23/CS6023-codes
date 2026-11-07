@@ -597,10 +597,52 @@ breakdown almost unchanged.
 \label{sec:fp16}
 
 The split version's own cliff at $\approx$4,000 spheres (\cref{fig:sizes}) is again a capacity
-limit. Storing the spheres in 16-bit floats (8 bytes, arithmetic still 32-bit) would let 8,192 spheres fit
-in L1, at the cost of four conversions per test and positions rounded by up to 0.03 (at most
-0.19 pixels on screen). \rebench{Preliminary: 7--8\,\% slower up to 3,800 spheres, 1.02$\times$ at
-5,000; to be re-measured with a corrected version.}
+limit. Storing the spheres in 16-bit floats (8 bytes, arithmetic still 32-bit) lets 8,192 spheres fit in
+L1, at the cost of converting each value back to 32 bits before the test. The first version compiled
+to separate 16-bit loads; reading each sphere through a 64-bit integer type gives one 64-bit load per
+sphere, as intended.
+
+The memory side works: at 5,000 spheres the L1 hit rate rises from 94.7 to 99.9\,\% and L2 traffic
+falls from 425 to 7.9\,MB (ncu). But the conversions add 17\,\% instructions. The kernel issues
+better (IPC 2.62 $\to$ 3.05, issue slots 61 $\to$ 73\,\% busy, cycles with no eligible warp
+33 $\to$ 22\,\%) and ends up about as fast (ncu: 106.0 $\to$ 103.7\,ms). The timing agrees
+(\cref{tab:fp16}): 1--5\,\% slower up to 4,000 spheres, where the fma version's array also fits in
+L1, and 1--2\,\% faster above, within the noise. As with prefetch, the latency it removes was mostly
+hidden by other warps already, and the extra instructions cost about as much as it saves.
+
+The image also changes (\cref{fig:fp16}). Rounding moves sphere positions by at most 0.19 pixels on
+screen, but every pixel whose centre is that close to a silhouette flips; with thousands of small
+spheres that is 3.7\,\% of the pixels at 400 spheres and 6.2\,\% at 5,000 (the leaner FP version
+differs from the baseline in 0.36\,\%). For no gain in speed, half-precision storage was not
+pursued further.
+
+\begin{table}[h]
+  \centering
+  \small
+  \begin{tabular}{@{}lrrrrrrrr@{}}
+    \toprule
+    spheres $N$ & 400 & 1,000 & 2,000 & 3,000 & 3,600 & 4,000 & 4,500 & 5,000 \\
+    \midrule
+    fewer FP (ms)        & 2.84 & 6.82 & 14.84 & 25.03 & 31.86 & 37.10 & 44.46 & 49.99 \\
+    half precision (ms)  & 2.98 & 7.19 & 15.14 & 26.32 & 32.38 & 37.43 & 43.38 & 49.51 \\
+    speedup              & 0.95 & 0.95 & 0.98 & 0.95 & 0.98 & 0.99 & 1.02 & 1.01 \\
+    pixels differing     & 3.7\,\% & 4.3\,\% & 5.0\,\% & 5.5\,\% & 5.8\,\% & 5.9\,\% & 6.1\,\% & 6.2\,\% \\
+    \bottomrule
+  \end{tabular}
+  \caption{Half-precision sphere storage against the fewer-FP version, both $8 \times 8$
+    (depth 10, threshold 0.01, mean of 10 interleaved runs). Pixels differing: against the
+    fewer-FP version's image.}
+  \label{tab:fp16}
+\end{table}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.6\linewidth]{results/final/scene/fp16/diff_fp16_vs_fma.png}
+  \caption{Pixels where the half-precision version differs from the fewer-FP version (red), 5,000
+    spheres; the image underneath is dimmed. The differences sit at sphere silhouettes, densest
+    among the many small far-away spheres.}
+  \label{fig:fp16}
+\end{figure}
 
 % =============================================================================
 \section{Divergence, occupancy, registers and memory}
