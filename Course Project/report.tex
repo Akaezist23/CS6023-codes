@@ -83,8 +83,18 @@
 
 \begin{abstract}
 
-The main goal of this project is to build a working ray tracer in CUDA, add reflections and shadows, then make it faster. We start with a basic CPU ray tracer that renders 3 spheres on a checkerboard
-floor with diffuse shading and hard shadows. We first port it to CUDA and then extend it to multiple reflections with multiple spheres. The report provides all the optimizations we did.
+Ray tracing renders an image by following a ray from the camera through every pixel, finding the
+closest object it hits and shading that point, with further rays for shadows and reflections. Every
+pixel can be computed independently, which suits a GPU, but the work per pixel varies widely: some
+rays leave the scene at once, others bounce between mirrors many times. This project starts from a
+simple CPU ray tracer (three spheres on a checkerboard floor, diffuse shading, hard shadows), ports
+it to CUDA, and extends it to multiple reflection bounces and scenes of up to 5,000 spheres. The aim
+is to understand what limits such a kernel on a GPU (here an NVIDIA Tesla T4) and to make it faster:
+we measure how it scales with reflection depth, image resolution and scene size, use profiling to
+find the bottleneck at each step, and test optimizations of memory layout, launch configuration and
+arithmetic, including attempts that did not help. The kernel turns out to be latency-bound
+throughout; the optimizations that worked make it 1.64$\times$ faster at 5,000 spheres, and a
+bounding volume hierarchy, as an extension, a further 43.5$\times$.
 
 \end{abstract}
 
@@ -103,8 +113,8 @@ add multiple reflection bounces and study how the time scales with depth and res
 (\cref{sec:multibounce}), and scale the scene to 5,000 spheres and make the kernel faster
 (\cref{sec:scene,sec:opt,sec:failed}). Each optimization follows the same loop: profile, form a
 hypothesis, change one thing, measure again. \Cref{sec:discussion} discusses divergence, occupancy,
-register pressure and memory behaviour; \cref{sec:bvh} briefly covers a bounding volume hierarchy as
-an algorithmic extension, and \cref{sec:further} lists further optimizations that were not
+register pressure and memory behaviour; \cref{sec:bvh} briefly covers a bounding volume hierarchy,
+implemented and timed as an algorithmic extension, and \cref{sec:further} lists further optimizations that were not
 implemented.
 
 % =============================================================================
@@ -120,10 +130,12 @@ launch of the same kernel and synchronizes, then times a second launch. Without 
 warm-up, the first launch in each process waited $\approx$173\,$\mu$s for the kernel code to be
 loaded (seen in Nsight Systems), which dominated sub-millisecond measurements. Every data point is the
 mean of 10 runs. Times vary between Colab sessions by up to 7\,\%, so versions are only compared
-within one session, and the overview table runs all versions interleaved.
+within one session, and all comparisons of versions (the overview table, the scene-size sweeps and
+the BVH and half-precision tables) run the versions interleaved: each round runs every version once.
 
 \paragraph{Correctness.} Every version's image is compared pixel by pixel with the baseline's; all
-are identical except the two that change the arithmetic (\cref{sec:fma,sec:fp16}).
+are identical except the two that change the arithmetic (\cref{sec:fma,sec:fp16}) and the BVH,
+which uses the leaner intersection test and differs from the baseline in exactly the same pixels.
 
 \paragraph{Profiles.} Nsight Compute (ncu) locks the SM clock at 585\,MHz (boost: up to 1590\,MHz),
 so it measures the work a kernel needs, independent of the clock. Its durations are only compared
@@ -735,22 +747,11 @@ $\approx$1,800 to $\approx$4,000 spheres; and small blocks traded L1 sharing for
 \section{Extension: a bounding volume hierarchy}
 \label{sec:bvh}
 
-All optimizations above keep one test per sphere per ray, $O(N)$. A bounding volume hierarchy groups
-the spheres into a tree of boxes (built once on the CPU; traversed per thread with an explicit stack),
-so one box test skips a whole group and the cost per ray grows roughly with $\log N$. The tree is
-built by splitting each group at the median along its longest axis, with up to 4 spheres per leaf;
-children are visited nearer-first and skipped if their box starts beyond the closest hit so far. At
-5,000 spheres the BVH runs in 1.12\,ms (\cref{tab:bvh}). On the main scene its time only doubles from 400 to 5,000 spheres,
-while the flat versions grow 18--20$\times$; on the large scene it grows 13$\times$ (flat:
-27--33$\times$) and is 1.6$\times$ slower than on the main scene at 5,000 spheres. Its image differs
-from the baseline's in exactly the same pixels as the best flat version's, since it uses the same
-intersection test and only skips spheres.
-
-The BVH was profiled only once, before the final measurement method, and is not part of the final
-profile set. That profile (5,000 spheres) shows $\approx$35$\times$ fewer cycles than the best flat
-version (ncu: 106 $\to$ 3.0\,ms) and a different kernel: the ALU pipe (box tests via min/max, stack
-and index arithmetic) becomes the busiest instead of the FMA pipe, only 16 of 32 threads are active
-because each thread follows its own path through the tree, and register use rises to 63 per thread.
+The project brief lists bounding volume hierarchies among the possible extensions, so we tried one.
+The spheres are grouped into a tree of boxes, built once on the CPU; each thread walks the tree and
+skips every group whose box its ray misses, so it no longer tests all $N$ spheres. At 5,000 spheres
+it is 43.5$\times$ faster than the best flat version on the main scene and 25.5$\times$ on the large
+one (\cref{tab:bvh}).
 
 \begin{table}[h]
   \centering
@@ -775,12 +776,7 @@ because each thread follows its own path through the tree, and register use rise
   \label{tab:bvh}
 \end{table}
 
-Three improvements were not tried. Each node's box is tested twice, before its child is pushed and
-again when it is popped; storing the entry distance on the stack would remove the second test. A tree
-built with the surface area heuristic (SAH) instead of the median split usually needs fewer node
-visits per ray, which may matter most for the clustered large scene. And at 63 registers per thread
-the $8 \times 8$ kernel sits exactly at the 16-blocks-per-SM limit, so any change that adds registers
-would start to cut occupancy; \texttt{\_\_launch\_bounds\_\_} can cap them.
+The BVH was only timed, not profiled or tuned; looking into it further is left for future work.
 
 % =============================================================================
 \section{Further optimizations}
@@ -815,11 +811,18 @@ One thread per pixel made the kernel $\approx$1,300 times faster than the CPU lo
 threshold keeps deep reflections cheap. On a 5,000-sphere scene, three GPU-side changes made the
 kernel 1.64$\times$ faster (1.50--2.04$\times$ on three scenes, \cref{tab:all}): a compact, aligned
 copy of the data the intersection test needs (1.25$\times$), small square blocks (1.23$\times$) and a
-leaner intersection test (1.07$\times$). Attempts to hide latency inside each warp failed because they
-added instructions to a kernel whose latency other warps already hide. Every version is latency-bound,
+leaner intersection test (1.07$\times$); depending on the scene size the total reaches
+2.12$\times$ (\cref{fig:sweep}). Attempts to hide latency inside each warp, or to remove it with
+half-precision storage, failed because they added instructions to a kernel whose latency other warps
+already hide. Every version is latency-bound,
 and profile and timing can disagree when the GPU clocks versions differently. The largest remaining
 costs are divergence, with a third of the lanes idle, and testing every sphere for every ray, which a
 bounding volume hierarchy reduces by more than an order of magnitude (43.5$\times$ faster than the
 best flat version at 5,000 spheres, \cref{tab:bvh}).
+
+\section*{Acknowledgements}
+
+I thank Aditya Kaushik for lending me his scene, used as the ``large'' scene in several of the
+benchmarks.
 
 \end{document}

@@ -1,4 +1,36 @@
-# CUDA Ray Tracer: running the benchmarks
+# CUDA Ray Tracer (CS6023 course project)
+
+The report is `report.pdf` (source: `report.tex`).
+
+## Build and run
+
+Needs the CUDA toolkit (`nvcc`) and `g++`. All measurements were made on a Tesla T4 (sm_75).
+
+```bash
+make                 # builds the CPU starter and every CUDA version into bin/
+make run             # best flat version and BVH on the 5,000-sphere scene: prints both kernel times
+make images          # renders the report's images into images/ (PPM)
+make ARCH=-arch=sm_75 SCENE=kaushik_scene.h   # options: target GPU, scene (after "make clean")
+```
+
+Every program writes `image.ppm` and prints its kernel time. For example
+`./bin/fma 5000 10 0.01 8 8` renders 5,000 spheres, depth 10, threshold 0.01, with 8x8 blocks;
+`./bin/baseline` is the direct port of the CPU starter (`./bin/cpu_raytracer`), which renders the same
+3-sphere image.
+
+| Report section | Source | Data / script |
+|---|---|---|
+| 3 Port, CPU vs GPU | `src/baseline.cu`, `starter_raytracer_cpu.cpp` | `compare_cpu.sh`, `results/final/scene/compare_cpu.txt` |
+| 4 Multiple bounces, depth, resolution | `src/multi_reflections_timed.cu`, `_fma.cu` | `compare_depth.sh`, `compare_resolution.sh`, `results/depth_images/` |
+| 5 Scaling the scene | `src/scene.h` | `compare_sizes.sh`, `sweep_all.sh` |
+| 6 Optimizations | `_shared`, `_split`, `_fma` (8x8 blocks) | `compare_all.sh`, `compare_blocks.sh`, `sweep_all.sh` |
+| 7 Attempts that did not help | `_2sphere`, `_prefetch`, `_fp16` | `compare_all.sh`, `results/final/scene/fp16/` |
+| 8 Profiles (stalls, roofline) | all of the above | `profile.sh`, `ncu_to_csv.py` |
+| 9 BVH extension | `src/multi_reflections_bvh.cu` | `compare_all.sh`, `results/final/*/bvh/` |
+
+All results behind the report's tables and plots are in `results/final/<scene>/` (text tables + CSV).
+
+## Running the benchmarks
 
 All measurements in `report.tex` were made on a Tesla T4 (Google Colab), with CUDA and `nvcc` on the path.
 The scripts also need `python3` with Pillow (for the image checks) and, for profiling, Nsight Systems (`nsys`)
@@ -31,8 +63,9 @@ the default scene is `scene.h`.
 | `multi_reflections_split.cu` | sphere centre + radius in a separate `float4` array |
 | `multi_reflections_2sphere.cu`, `_prefetch.cu` | the two attempts that did not help |
 | `multi_reflections_fma.cu` | split + fewer FP instructions (best version, run with 8×8 blocks) |
-| `multi_reflections_fp16.cu` | half-precision sphere storage (preliminary) |
-| `multi_reflections_bvh*.cu` | BVH extension |
+| `multi_reflections_fp16.cu` | half-precision sphere storage (did not help) |
+| `multi_reflections_bvh.cu` | BVH extension (`_bvh_bare.cu`: without nearer-first order and pruning) |
+| `multi_reflections_naive.cu`, `_threshold.cu`, `_bvh_reps.cu` | intermediate versions, not in the report (`make extras`) |
 
 ## Benchmarks
 
@@ -64,10 +97,11 @@ Helpers:
 - `compare_images.py a.ppm b.ppm [diff.ppm]` compares two images pixel by pixel.
 - `table_to_csv.py` converts the text tables to CSV.
 - `merge_sweep.py` merges the per-N tables of `sweep_all.sh`.
+- `ncu_to_csv.py` extracts the stall breakdown and roofline numbers from Nsight Compute reports.
 
 ## LLM acknowledgement
 
-The benchmark and profiling scripts (`*.sh`) and the Python helpers in this folder were written by
+The `Makefile`, the benchmark and profiling scripts (`*.sh`) and the Python helpers in this folder were written by
 Claude (Anthropic's AI assistant). I decided what to measure and how, and Claude wrote the scripts.
 `src/multi_reflections_fp16.cu`, a copy of the fp16 version with the types changed, was also written by Claude.
 Claude was also used to explain code snippets and profiler output and to discuss optimization
