@@ -10,7 +10,7 @@ Needs the CUDA toolkit (`nvcc`) and `g++`. All measurements were made on a Tesla
 make                 # builds the CPU starter and every CUDA version into bin/
 make run             # best flat version and BVH on the 5,000-sphere scene: prints both kernel times
 make images          # renders the report's images into images/ (PPM)
-make ARCH=-arch=sm_75 SCENE=kaushik_scene.h   # options: target GPU, scene (after "make clean")
+make ARCH=-arch=sm_75 SCENE=scene.h   # options: target GPU, scene header in src/ (after "make clean")
 ```
 
 Every program writes `image.ppm` and prints its kernel time. For example
@@ -52,7 +52,7 @@ nvcc src/multi_reflections_fma.cu -o rt -O2 -std=c++11
 - `BX BY`: block size
 - `W H`: image size
 
-All arguments are optional. To use another scene, pass `-DSCENE_FILE='"kaushik_scene.h"'` to `nvcc`;
+All arguments are optional. To pick the scene, pass e.g. `-DSCENE_FILE='"scene.h"'` to `nvcc`;
 the default scene is `scene.h`.
 
 | Source | Version in the report |
@@ -101,8 +101,12 @@ Helpers:
 
 ## LLM acknowledgement
 
-The `Makefile`, the benchmark and profiling scripts (`*.sh`) and the Python helpers in this folder were written by
-Claude (Anthropic's AI assistant). I decided what to measure and how, and Claude wrote the scripts.
-`src/multi_reflections_fp16.cu`, a copy of the fp16 version with the types changed, was also written by Claude.
-Claude was also used to explain code snippets and profiler output and to discuss optimization
-ideas. The ray-tracer kernels and the optimizations themselves are my own work.
+The `Makefile`, the benchmark and profiling scripts (`*.sh`) and the Python helpers in this folder were
+written by Claude (Anthropic's AI assistant). I decided what to measure and how, and Claude wrote the
+scripts. In the CUDA programs, Claude also wrote the input and timing code in `main()`: the
+command-line arguments (`N depth threshold BX BY W H`), the untimed warm-up launch and the CUDA-event
+timing around the kernel. `src/multi_reflections_fp16.cu` is a copy of `src/multi_reflections_fma.cu`
+(the `float4` version) in which Claude changed only the sphere storage to half precision (the sphere
+struct, the sphere load and the floor argument); the rest of that file is unchanged. Claude was also
+used to explain code snippets and profiler output and to discuss optimization ideas. The ray-tracer
+kernels and the optimizations themselves are my own work.

@@ -5,7 +5,7 @@
 #   make images       render the images of the report into images/
 #   make clean        remove bin/, images/ and image.ppm
 #
-# Options (on the command line, e.g. "make ARCH=-arch=sm_75 SCENE=kaushik_scene.h"):
+# Options (on the command line, e.g. "make ARCH=-arch=sm_75 SCENE=scene.h"):
 #   ARCH    GPU architecture flag; empty = nvcc's default (all measurements: Tesla T4, sm_75)
 #   SCENE   scene header in src/ (scene.h, kaushik_scene.h, scene_adversarial.h); empty = scene.h
 #
