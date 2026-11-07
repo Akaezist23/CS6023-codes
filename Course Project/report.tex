@@ -111,8 +111,7 @@ This irregular control flow makes it an interesting GPU workload.
 The project follows the brief in three stages: port the CPU ray tracer to CUDA (\cref{sec:port}),
 add multiple reflection bounces and study how the time scales with depth and resolution
 (\cref{sec:multibounce}), and scale the scene to 5,000 spheres and make the kernel faster
-(\cref{sec:scene,sec:opt,sec:failed}). Each optimization follows the same loop: profile, form a
-hypothesis, change one thing, measure again. \Cref{sec:discussion} discusses divergence, occupancy,
+(\cref{sec:scene,sec:opt,sec:failed}). \Cref{sec:discussion} discusses divergence, occupancy,
 register pressure and memory behaviour; \cref{sec:bvh} briefly covers a bounding volume hierarchy,
 implemented and timed as an algorithmic extension, and \cref{sec:further} lists further optimizations that were not
 implemented.
@@ -822,7 +821,9 @@ best flat version at 5,000 spheres, \cref{tab:bvh}).
 
 \section*{Acknowledgements}
 
-I thank Aditya Kaushik for lending me his scene, used as the ``large'' scene in several of the
-benchmarks.
+I thank Prof.\ Rupesh Nasre for the opportunity to work on this project, and Ricky Dev (KLA) for
+guiding me through it and helping me whenever I got stuck. I also thank Aditya Kaushik for lending
+me his scene, used as the ``large'' scene in several of the benchmarks. Claude (Anthropic) wrote the
+benchmark and profiling scripts, and helped me reason about trade-offs and write this report.
 
 \end{document}
