@@ -1,0 +1,5 @@
+version,issued_inst,cycles_per_issue,long_scoreboard,wait,not_selected,math_pipe_throttle,lg_throttle,branch_resolving,no_instruction,other,long_scoreboard_gcycles,wait_gcycles,not_selected_gcycles,math_pipe_throttle_gcycles,lg_throttle_gcycles,branch_resolving_gcycles,no_instruction_gcycles,other_gcycles,total_gcycles
+timed_32x32_N5000,8140077230,10.430,2.138,2.481,2.136,1.431,1.429,0.503,0.227,0.085,17.406,20.192,17.388,11.650,11.634,4.094,1.849,0.689,84.902
+split_32x32_N5000,7300855559,10.067,2.710,2.413,2.238,1.770,0.011,0.568,0.289,0.068,19.784,17.614,16.342,12.919,0.081,4.149,2.112,0.493,73.494
+split_8x8_N5000,6502760328,8.725,2.421,2.402,1.642,1.125,0.012,0.563,0.499,0.060,15.746,15.620,10.675,7.316,0.081,3.662,3.244,0.391,56.734
+fma_8x8_N5000,6005968519,8.969,3.131,2.511,1.306,0.812,0.082,0.614,0.450,0.062,18.806,15.084,7.844,4.878,0.493,3.690,2.701,0.371,53.867

@@ -1,0 +1,14 @@
+N 4500, depth 10, threshold 0.01, scene scene.h, 10 interleaved runs per version
+Image check split@32x32 vs timed@32x32: IDENTICAL (800x600)
+Image check split@8x8 vs timed@32x32: IDENTICAL (800x600)
+Image check 2sphere@8x8 vs timed@32x32: IDENTICAL (800x600)
+Image check prefetch@8x8 vs timed@32x32: IDENTICAL (800x600)
+Image check fma@8x8 vs timed@32x32: DIFFERENT: 1603/480000 pixels (0.334%), max channel diff 251/255, first at (x=122, y=295)
+times in ms; vs ref = time(timed) / time; vs prev = time(row above) / time
+version       block       mean      std        min        max    vs ref   vs prev
+timed         32x32     72.779    0.500     71.922     73.594     1.00x         -
+split         32x32     58.224    0.759     56.932     59.003     1.25x     1.25x
+split           8x8     46.175    1.112     44.540     47.948     1.58x     1.26x
+2sphere         8x8     46.759    3.091     37.918     48.784     1.56x     0.99x
+prefetch        8x8     49.879    1.123     47.311     51.175     1.46x     0.94x
+fma             8x8     43.076    1.034     41.689     45.036     1.69x     1.16x

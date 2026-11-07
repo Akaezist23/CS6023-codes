@@ -1,0 +1,8 @@
+N 400, depth 10, threshold 0.01, scene scene.h, 10 interleaved runs per version
+Image check fma@8x8 vs timed@32x32: DIFFERENT: 447/480000 pixels (0.093%), max channel diff 179/255, first at (x=122, y=295)
+Image check bvh@8x8 vs timed@32x32: DIFFERENT: 447/480000 pixels (0.093%), max channel diff 179/255, first at (x=122, y=295)
+times in ms; vs ref = time(timed) / time; vs prev = time(row above) / time
+version       block       mean      std        min        max    vs ref   vs prev
+timed         32x32      3.987    0.006      3.978      3.996     1.00x         -
+fma             8x8      2.726    0.037      2.674      2.789     1.46x     1.46x
+bvh             8x8      0.567    0.009      0.557      0.588     7.03x     4.81x

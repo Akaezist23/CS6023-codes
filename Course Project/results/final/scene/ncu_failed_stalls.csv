@@ -1,0 +1,4 @@
+version,issued_inst,cycles_per_issue,long_scoreboard,wait,not_selected,math_pipe_throttle,lg_throttle,branch_resolving,no_instruction,other,long_scoreboard_gcycles,wait_gcycles,not_selected_gcycles,math_pipe_throttle_gcycles,lg_throttle_gcycles,branch_resolving_gcycles,no_instruction_gcycles,other_gcycles,total_gcycles
+split_8x8_N5000,6502760328,8.725,2.421,2.402,1.642,1.125,0.012,0.563,0.499,0.060,15.746,15.620,10.675,7.316,0.081,3.662,3.244,0.391,56.734
+2sphere_8x8_N5000,6876883485,8.401,2.587,2.207,1.530,1.053,0.007,0.533,0.411,0.072,17.793,15.179,10.525,7.244,0.048,3.664,2.826,0.494,57.772
+prefetch_8x8_N5000,8168143666,6.941,0.377,1.374,2.389,1.598,0.001,0.444,0.628,0.131,3.078,11.225,19.515,13.049,0.005,3.625,5.126,1.067,56.691
