@@ -104,7 +104,8 @@ add multiple reflection bounces and study how the time scales with depth and res
 (\cref{sec:scene,sec:opt,sec:failed}). Each optimization follows the same loop: profile, form a
 hypothesis, change one thing, measure again. \Cref{sec:discussion} discusses divergence, occupancy,
 register pressure and memory behaviour; \cref{sec:bvh} briefly covers a bounding volume hierarchy as
-an algorithmic extension.
+an algorithmic extension, and \cref{sec:further} lists further optimizations that were not
+implemented.
 
 % =============================================================================
 \section{Setup and measurement method}
@@ -336,7 +337,17 @@ unused (0.3\,\%): the kernel waits for data, it is not short of bandwidth.
 \label{sec:opt}
 
 \Cref{tab:all} gives every step at 5,000 spheres, measured interleaved in one session on the main
-scene and on two other 5,000-sphere scenes (tiny sparse spheres; larger, less reflective spheres).
+scene and on two other 5,000-sphere scenes (tiny sparse spheres; larger, less reflective spheres
+in dense clusters), shown in \cref{fig:scenes}.
+
+\begin{figure}[h]
+  \centering
+  \begin{subfigure}{0.32\linewidth}\includegraphics[width=\linewidth]{results/final/scene_images/scene.png}\caption{main}\end{subfigure}\hfill
+  \begin{subfigure}{0.32\linewidth}\includegraphics[width=\linewidth]{results/final/scene_images/scene_adversarial.png}\caption{sparse}\end{subfigure}\hfill
+  \begin{subfigure}{0.32\linewidth}\includegraphics[width=\linewidth]{results/final/scene_images/kaushik_scene.png}\caption{large}\end{subfigure}
+  \caption{The three test scenes at 5,000 spheres (baseline render, depth 10, $800 \times 600$).}
+  \label{fig:scenes}
+\end{figure}
 
 \begin{table}[h]
   \centering
@@ -451,7 +462,9 @@ instructions. Waiting for data stays at 16--20 billion warp-cycles in every vers
 \subsection{Scene in shared memory}
 \label{sec:shared}
 
-Each block copies the scene into shared memory once, synchronizes, and then reads only the shared
+All 32 threads of a warp read the same sphere at the same time, and the 400-sphere profile showed four
+separate 32-bit loads per sphere test (\cref{sec:scene}). Shared memory is an explicitly managed copy
+that is never evicted and can be read with one wide load. Each block copies the scene into shared memory once, synchronizes, and then reads only the shared
 copy. A block may use 64\,KB of shared memory, i.e.\ at most \textbf{1,819 spheres}. The compiler now
 emits one 128-bit shared load per sphere instead of four 32-bit global loads (6.6\,\% fewer
 instructions), but while the scene fits in L1 the gain is small (1.06--1.11$\times$): on Turing, L1
@@ -462,7 +475,10 @@ used further.
 \subsection{Separating the data the intersection test needs}
 \label{sec:split}
 
-The intersection test only needs the centre and the radius, 16 of the 36 bytes. A separate array of
+Two observations pointed at the data layout: past $\approx$1,800 spheres the 36-byte array no longer
+fits in L1 (\cref{sec:scene}), and at 5,000 spheres the baseline's four 32-bit loads per test keep
+the load queue full (lg throttle, 1.43 stall cycles per instruction, \cref{fig:stalls}). The
+intersection test only needs the centre and the radius, 16 of the 36 bytes. A separate array of
 \texttt{float4} $(c_x, c_y, c_z, r)$ fits 2.25$\times$ more spheres in L1 and is loaded with one
 128-bit load (CUDA's \texttt{float4} is 16-byte aligned; a hand-written struct would not be). The
 full \texttt{Sphere} array is only read for the sphere that was hit.
@@ -580,7 +596,8 @@ breakdown almost unchanged.
 \subsection{Half-precision sphere storage}
 \label{sec:fp16}
 
-Storing the spheres in 16-bit floats (8 bytes, arithmetic still 32-bit) would let 8,192 spheres fit
+The split version's own cliff at $\approx$4,000 spheres (\cref{fig:sizes}) is again a capacity
+limit. Storing the spheres in 16-bit floats (8 bytes, arithmetic still 32-bit) would let 8,192 spheres fit
 in L1, at the cost of four conversions per test and positions rounded by up to 0.03 (at most
 0.19 pixels on screen). \rebench{Preliminary: 7--8\,\% slower up to 3,800 spheres, 1.02$\times$ at
 5,000; to be re-measured with a corrected version.}
@@ -678,15 +695,20 @@ $\approx$1,800 to $\approx$4,000 spheres; and small blocks traded L1 sharing for
 
 All optimizations above keep one test per sphere per ray, $O(N)$. A bounding volume hierarchy groups
 the spheres into a tree of boxes (built once on the CPU; traversed per thread with an explicit stack),
-so one box test skips a whole group and the cost per ray grows roughly with $\log N$. At 5,000 spheres
-it needs $\approx$30$\times$ fewer cycles than the best flat version (ncu: 105 $\to$ 3.5\,ms) and
-runs in 1.12\,ms (\cref{tab:bvh}). On the main scene its time only doubles from 400 to 5,000 spheres,
+so one box test skips a whole group and the cost per ray grows roughly with $\log N$. The tree is
+built by splitting each group at the median along its longest axis, with up to 4 spheres per leaf;
+children are visited nearer-first and skipped if their box starts beyond the closest hit so far. At
+5,000 spheres the BVH runs in 1.12\,ms (\cref{tab:bvh}). On the main scene its time only doubles from 400 to 5,000 spheres,
 while the flat versions grow 18--20$\times$; on the large scene it grows 13$\times$ (flat:
 27--33$\times$) and is 1.6$\times$ slower than on the main scene at 5,000 spheres. Its image differs
 from the baseline's in exactly the same pixels as the best flat version's, since it uses the same
-intersection test and only skips spheres. The kernel changes character: the integer pipe (box tests, stack)
-becomes the busiest, only 15--16 of 32 threads are active because each thread follows its own path
-through the tree, and register use rises to 55--63 per thread.
+intersection test and only skips spheres.
+
+The BVH was profiled only once, before the final measurement method, and is not part of the final
+profile set. That profile (5,000 spheres) shows $\approx$35$\times$ fewer cycles than the best flat
+version (ncu: 106 $\to$ 3.0\,ms) and a different kernel: the ALU pipe (box tests via min/max, stack
+and index arithmetic) becomes the busiest instead of the FMA pipe, only 16 of 32 threads are active
+because each thread follows its own path through the tree, and register use rises to 63 per thread.
 
 \begin{table}[h]
   \centering
@@ -710,6 +732,38 @@ through the tree, and register use rises to 55--63 per thread.
     interleaved runs (std.\ below 3\,\%).}
   \label{tab:bvh}
 \end{table}
+
+Three improvements were not tried. Each node's box is tested twice, before its child is pushed and
+again when it is popped; storing the entry distance on the stack would remove the second test. A tree
+built with the surface area heuristic (SAH) instead of the median split usually needs fewer node
+visits per ray, which may matter most for the clustered large scene. And at 63 registers per thread
+the $8 \times 8$ kernel sits exactly at the 16-blocks-per-SM limit, so any change that adds registers
+would start to cut occupancy; \texttt{\_\_launch\_bounds\_\_} can cap them.
+
+% =============================================================================
+\section{Further optimizations}
+\label{sec:further}
+
+The measurements point to four more directions for the flat kernel, none of them implemented:
+\begin{itemize}[nosep]
+  \item \textbf{Shared-memory tiling.} The shared-memory version (\cref{sec:shared}) failed only
+        because the whole scene had to fit. A block can instead loop over the scene in tiles of
+        $\approx$1,800 spheres: load a tile together, synchronize, test against it, synchronize, load
+        the next. No sphere test would then read from L2, at any $N$, and the L1 cliffs of
+        \cref{fig:sizes} would disappear. The cost is two barriers per tile, and every thread must
+        take part in every tile load, including those whose ray has already stopped.
+  \item \textbf{Constant memory.} All threads of a warp read the same sphere at the same time, the
+        access pattern constant memory is built for: one read is broadcast to the whole warp. It holds
+        64\,KB (4,096 spheres of 16 bytes) behind a small per-SM cache, so it meets the same capacity
+        question as L1 for large scenes.
+  \item \textbf{Less divergence.} A third of the lanes are idle (\cref{sec:discussion}) because rays
+        in a warp stop at different bounces and shadow rays stop at different spheres. Wavefront ray
+        tracing processes all rays one stage at a time from a queue of active rays, so a warp always
+        holds rays doing the same work and stopped rays leave the queue.
+  \item \textbf{Persistent threads for small images.} Small images leave SMs idle while the slowest
+        warps finish (\cref{sec:resolution}). Launching just enough blocks to fill the GPU and letting
+        each fetch the next tile of pixels from a global counter keeps every SM busy until the end.
+\end{itemize}
 
 % =============================================================================
 \section{Conclusion}

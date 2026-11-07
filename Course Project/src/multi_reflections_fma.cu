@@ -1,17 +1,3 @@
-// ============================================================================
-//  Basic CPU ray tracer  --  starter code
-// ============================================================================
-//  Renders a few spheres on a checkerboard floor, with simple diffuse shading
-//  and hard shadows. Single-threaded, plain C++. No external libraries.
-//
-//  This is your STARTING POINT -- it is short on purpose.
-//  Later you will (a) add reflections, (b) port it to CUDA, and (c) make it fast.
-//
-//  Build:  g++ -O2 -o raytracer_cpu starter_raytracer_cpu.cpp
-//  Run:    ./raytracer_cpu                 (writes image.ppm)
-//  View:   most image viewers open .ppm; or convert with:  convert image.ppm image.png
-// ============================================================================
-
 #include <cstdio>
 #include <cstdlib>
 #include <cmath>
@@ -47,16 +33,6 @@ struct Sphere {
 // A ray is a point p(t) = origin + t * dir. This finds where (if anywhere) the
 // ray hits the sphere, returning the nearest distance t in front of the camera,
 // or -1 if it misses. (Solves a quadratic -- see any ray-sphere reference.)
-// __device__ float hitSphere(const Sphere& s, Vec3 origin, Vec3 dir) {
-//     Vec3  oc = origin - s.center;
-//     float a = dot(dir, dir);
-//     float b = 2.0f * dot(oc, dir);
-//     float c = dot(oc, oc) - s.radius * s.radius;
-//     float disc = b * b - 4 * a * c;
-//     if (disc < 0) return -1.0f;                 // no real solution -> miss
-//     float t = (-b - std::sqrt(disc)) / (2 * a); // nearest intersection
-//     return (t > 0.001f) ? t : -1.0f;
-// }
 __device__ float hitSphere(const float4& s, Vec3 origin, Vec3 dir) {
     Vec3  center(s.x, s.y, s.z);
     float radius2 = s.w;
@@ -85,7 +61,6 @@ __device__ int closestHit(Vec3 origin, Vec3 dir, float4* active_scene, int scene
 
 // Compute the color seen along one ray.
 __device__ Vec3 rayColor(Vec3 origin, Vec3 dir, Sphere* scene, float4* active_scene, int scene_size, int depth = 0, float threshold = 0.01f) {
-    // TRY IT: move the light around and see how shading/shadows change.
     // x = right, y = up, z = toward the camera.
     Vec3  lightPos(4, 6, 2);
     float tHit;

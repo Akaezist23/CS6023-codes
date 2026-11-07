@@ -1,17 +1,3 @@
-// ============================================================================
-//  Basic CPU ray tracer  --  starter code
-// ============================================================================
-//  Renders a few spheres on a checkerboard floor, with simple diffuse shading
-//  and hard shadows. Single-threaded, plain C++. No external libraries.
-//
-//  This is your STARTING POINT -- it is short on purpose.
-//  Later you will (a) add reflections, (b) port it to CUDA, and (c) make it fast.
-//
-//  Build:  g++ -O2 -o raytracer_cpu starter_raytracer_cpu.cpp
-//  Run:    ./raytracer_cpu                 (writes image.ppm)
-//  View:   most image viewers open .ppm; or convert with:  convert image.ppm image.png
-// ============================================================================
-
 #include <cstdio>
 #include <cstdlib>
 #include <cmath>
@@ -142,7 +128,6 @@ __device__ int closestHit(Vec3 origin, Vec3 dir, float4* active_scene, bvhNode* 
 
 // Compute the color seen along one ray.
 __device__ Vec3 rayColor(Vec3 origin, Vec3 dir, Sphere* scene, float4* active_scene, bvhNode* nodes, int scene_size, int depth = 0, float threshold = 0.01f) {
-    // TRY IT: move the light around and see how shading/shadows change.
     // x = right, y = up, z = toward the camera.
     Vec3  lightPos(4, 6, 2);
     float tHit;
